@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "3.2.4β",
-  "updatedAt": "2026-06-21",
+  "launcherVersion": "3.2.5β",
+  "updatedAt": "2026-06-21b",
   "tools": [
     {
       "id": "Checker",
@@ -46,6 +46,15 @@
       "desc": "キャッシュ<br>フィードバック",
       "url": "./tools/settings.js",
       "renderFn": "Settings.render",
+      "cache": true
+    },
+    {
+      "id": "install",
+      "name": "アプリの<br>使い方",
+      "icon": "📲",
+      "desc": "ホーム画面に<br>追加する方法",
+      "url": "./tools/install.js",
+      "renderFn": "Install.render",
       "cache": true
     }
   ],

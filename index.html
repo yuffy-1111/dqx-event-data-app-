@@ -139,7 +139,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '3.2.4β';
+        window.HTML_VERSION = '3.2.5β';
 
         // リロード回数の管理（無限ループ防止）
         window.RELOAD_KEY = 'dqx_reload_count';
@@ -452,7 +452,8 @@ const FALLBACK_TOOLS = [
     { id: 'exp-m', name: '傭兵用多機能ツール', icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js', renderFn: 'Expmercenary.render' },
     { id: 'versions', name: '傭兵用多機能ツール<br>旧ver', icon: '📜', desc: '旧verセレクタ', url: './tools/version_selector.js', renderFn: 'VersionSelector.render' },
     { id: 'help', name: '取扱説明書', icon: '📖', desc: '使い方<br>Q&A', url: './tools/help.js', renderFn: 'Help.render' },
-    { id: 'settings', name: '設定', icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js', renderFn: 'Settings.render' }
+    { id: 'settings', name: '設定', icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js', renderFn: 'Settings.render' },
+    { id: 'install', name: 'アプリの<br>使い方', icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js', renderFn: 'Install.render' }
 ];
 
 function registerAllTools(manifestData) {

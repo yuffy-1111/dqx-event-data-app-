@@ -2,7 +2,7 @@
 // キャッシュ名はバージョンを含める。launcher.js の APP_VERSION と
 // tools-manifest.json の launcherVersion を更新するタイミングで
 // 必ずこの値も更新すること（更新しないと古いキャッシュが残り続ける）。
-const CACHE_VERSION = '3.2.4b-2';
+const CACHE_VERSION = '3.2.5b';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 // 起動直後に必要な「殻」となるファイル群（通常ツールのみ）
@@ -18,7 +18,8 @@ const PRECACHE_URLS = [
     './tools/expmercenary.js',
     './tools/version_selector.js',
     './tools/help.js',
-    './tools/settings.js'
+    './tools/settings.js',
+    './tools/install.js'
 ];
 
 // このパターンに一致するリクエストはキャッシュせず、常にネットワークへ

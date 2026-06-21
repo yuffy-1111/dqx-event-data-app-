@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '3.2.4β';
+const APP_VERSION = '3.2.5β';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -245,7 +245,8 @@ const DQXTools = {
                     ${cardButtons}
                 </div>
                 <div class="home-footer">
-                    © 2026 yuffy_rre
+                    <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
+                    <div class="footer-copyright">© 2026 yuffy_rre</div>
                 </div>
             </div>
         `;
@@ -253,6 +254,16 @@ const DQXTools = {
         const toggleBtn = document.getElementById('global-dark-toggle');
         if (toggleBtn) {
             toggleBtn.onclick = () => this.toggleDarkMode();
+        }
+
+        const footerInstallLink = document.getElementById('footer-install-link');
+        if (footerInstallLink) {
+            footerInstallLink.onclick = (e) => {
+                e.preventDefault();
+                if (this.tools['install']) {
+                    this.loadTool('install');
+                }
+            };
         }
 
         document.querySelectorAll('.tool-card').forEach(card => {
