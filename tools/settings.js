@@ -33,6 +33,14 @@
                     </div>
 
                     <div class="settings-card">
+                        <h3>📲 アプリとして追加</h3>
+                        <div id="pwaInstallInfo"></div>
+                        <div class="button-group" id="pwaInstallButtonWrap" style="margin-top: 12px; display:none;">
+                            <button id="pwaInstallBtn" class="btn-info">ホーム画面に追加</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
                         <h3>📦 ストレージ状況</h3>
                         <div id="storageInfo"></div>
                     </div>
@@ -259,6 +267,96 @@
                     ${cachedFileCount !== null ? `<p>📁 保存済みファイル: ${cachedFileCount} 件</p>` : ''}
                 `;
             }
+
+            // ----- アプリとして追加（ホーム画面インストール） -----
+            function detectEnvironment() {
+                const ua = navigator.userAgent;
+                const isIOS = /iPhone|iPad|iPod/.test(ua) && !window.MSStream;
+                const isAndroid = /Android/.test(ua);
+                const isFirefox = /Firefox/.test(ua) && !/Seamonkey/.test(ua);
+                const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
+                return { isIOS, isAndroid, isFirefox, isSafari, isStandalone };
+            }
+
+            let deferredInstallPrompt = null;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredInstallPrompt = e;
+                renderInstallUI();
+            });
+            window.addEventListener('appinstalled', () => {
+                deferredInstallPrompt = null;
+                renderInstallUI();
+            });
+
+            function renderInstallUI() {
+                const infoDiv = document.getElementById('pwaInstallInfo');
+                const btnWrap = document.getElementById('pwaInstallButtonWrap');
+                const installBtn = document.getElementById('pwaInstallBtn');
+                if (!infoDiv) return;
+
+                const env = detectEnvironment();
+
+                if (env.isStandalone) {
+                    infoDiv.innerHTML = `<p>✅ すでにアプリとして起動しています。</p>`;
+                    if (btnWrap) btnWrap.style.display = 'none';
+                    return;
+                }
+
+                // Chrome/Edge/Android等：ブラウザ提供のインストールボタンが使える
+                if (deferredInstallPrompt) {
+                    infoDiv.innerHTML = `<p>このツールをホーム画面に追加すると、アプリのように起動できます。</p>`;
+                    if (btnWrap) btnWrap.style.display = 'flex';
+                    return;
+                }
+
+                if (btnWrap) btnWrap.style.display = 'none';
+
+                // Firefox（PC・Android）：手動手順を案内
+                if (env.isFirefox) {
+                    infoDiv.innerHTML = `
+                        <p>Firefoxでは以下の手順でホーム画面・アプリ一覧に追加できます。</p>
+                        <p>① アドレスバー右側のメニュー（または ⋮ ）を開く</p>
+                        <p>② 「ホーム画面に追加」または「インストール」を選択</p>
+                        <p>③ 表示された名前のまま追加してください</p>
+                    `;
+                    return;
+                }
+
+                // iOS Safari：PWAインストールAPIが無いので専用案内
+                if (env.isIOS && env.isSafari) {
+                    infoDiv.innerHTML = `
+                        <p>iPhone/iPadでは以下の手順でホーム画面に追加できます。</p>
+                        <p>① 画面下部の「共有」ボタン（□に↑）をタップ</p>
+                        <p>② 「ホーム画面に追加」をタップ</p>
+                        <p>③ 右上の「追加」をタップ</p>
+                    `;
+                    return;
+                }
+
+                // それ以外（PC Safari等、判定できない場合）
+                infoDiv.innerHTML = `
+                    <p>お使いのブラウザのメニューから「ホーム画面に追加」または「インストール」を選択すると、アプリのように起動できます。</p>
+                `;
+            }
+
+            const installBtnEl = document.getElementById('pwaInstallBtn');
+            if (installBtnEl) {
+                installBtnEl.onclick = async () => {
+                    if (!deferredInstallPrompt) return;
+                    deferredInstallPrompt.prompt();
+                    const choice = await deferredInstallPrompt.userChoice;
+                    deferredInstallPrompt = null;
+                    renderInstallUI();
+                    if (choice.outcome === 'accepted') {
+                        alert('✅ アプリとして追加しました');
+                    }
+                };
+            }
+
+            renderInstallUI();
 
             // ----- 最新版を確認して更新 -----
             const forceUpdateBtn = document.getElementById('forceUpdateApp');
