@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ユッフィーのDQXツール</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#0066cc">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="stylesheet" href="launcher.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0 !important;
+            padding: 20px 0 0 0 !important;
+            background: #eef2f7;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        body.dark-mode {
+            background: #0f172a;
+            padding: 20px 0 0 0 !important;
+        }
+        #dqx-app {
+            max-width: 950px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 0 16px;
+        }
+        #dqx-app > div:first-child {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        #dqx-tool-container {
+            margin-top: 24px !important;
+            padding-bottom: 100px !important;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 12px 0 0 0 !important;
+            }
+            #dqx-app {
+                padding: 0 8px;
+            }
+            #dqx-tool-container {
+                margin-top: 16px !important;
+                padding-bottom: 120px !important;
+            }
+        }
+        .maintenance-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .maintenance-text {
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            background: #223a70;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        /* ----- 起動時オンラインチェック用トースト通知 -----
+           画面を占有せず、操作をブロックしない控えめな通知。
+           環境（iOSのstandaloneモード等）によるブロックを避けるため
+           alertやconfirmは使わず、自前のDOM要素のみで完結させる。 */
+        #dqx-update-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%) translateY(120%);
+            max-width: 92vw;
+            width: 380px;
+            background: #223a70;
+            color: #fff;
+            border-radius: 14px;
+            padding: 12px 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10500;
+            font-size: 13px;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            transition: transform 0.3s ease;
+            pointer-events: none;
+        }
+        #dqx-update-toast.show {
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        #dqx-update-toast .dqx-toast-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        #dqx-update-toast .dqx-toast-body {
+            flex: 1;
+        }
+        #dqx-update-toast .dqx-toast-close {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+        }
+        #dqx-update-toast .dqx-toast-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        #dqx-update-toast.dqx-toast-success {
+            background: #0a6e4f;
+        }
+        body.dark-mode #dqx-update-toast {
+            background: #1e293b;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        @media (max-width: 768px) {
+            #dqx-update-toast {
+                bottom: 130px;
+                width: 92vw;
+            }
+        }
+    </style>
+    <script>
+        window.HTML_VERSION = '3.2.4β';
+
+        // リロード回数の管理（無限ループ防止）
+        window.RELOAD_KEY = 'dqx_reload_count';
+        window.MAX_RELOAD = 2;
+
+        // ========== ストレージキーのクリーンアップ（毎読み込み時） ==========
+        function cleanupStorage() {
+            // 許可されたlocalStorage キーのリスト
+            const allowedLocalStorageKeys = [
+                'dqx_app_version',
+                'dqx_card_order',
+                'dqx_visible_tools',
+                'dqx_test_token',
+                'dqx_dev_mode',
+                'darkMode',
+                'dqx_craft_last',
+                'dqx_chars_final10',
+                'dqx_disabled_final10',
+                'dqx_hidden_tasks_v1',
+                'dqx_limited_checks_v3',
+                'dqx_lap_notify',
+                'dqx_shopping_cart',
+                'dqx_material_prices',
+                // サイドバーの表示状態を保持するため許可
+                'dqx_sidebar_visible',
+                // 新規ツール追加検知のため許可
+                'dqx_known_tool_ids'
+            ];
+
+            // ========== localStorageのクリーンアップ ==========
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                if (!key) continue;
+
+                // 許可リストに含まれている、または'dqx_check_final10_'で始まるキーは保持
+                const isAllowed = allowedLocalStorageKeys.includes(key) || key.startsWith('dqx_check_final10_');
+                if (!isAllowed) {
+                    try {
+                        localStorage.removeItem(key);
+                        console.log(`[Storage Cleanup] localStorage から削除: ${key}`);
+                    } catch (e) {
+                        console.warn(`[Storage Cleanup] localStorage の削除に失敗: ${key}`, e);
+                    }
+                }
+            }
+
+            // ========== sessionStorageのクリーンアップ ==========
+            const allowedSessionStorageKeys = ['dqx_reload_count'];
+            for (let i = sessionStorage.length - 1; i >= 0; i--) {
+                const key = sessionStorage.key(i);
+                if (!key) continue;
+
+                if (!allowedSessionStorageKeys.includes(key)) {
+                    try {
+                        sessionStorage.removeItem(key);
+                        console.log(`[Storage Cleanup] sessionStorage から削除: ${key}`);
+                    } catch (e) {
+                        console.warn(`[Storage Cleanup] sessionStorage の削除に失敗: ${key}`, e);
+                    }
+                }
+            }
+        }
+
+        // ページ読み込み時にクリーンアップを実行
+        document.addEventListener('DOMContentLoaded', cleanupStorage);
+
+        // Pull to Refresh（スワイプ引っ張り再読み込み）禁止
+        document.addEventListener('DOMContentLoaded', function() {
+            let touchStartY = 0;
+            document.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: false });
+            document.addEventListener('touchmove', (e) => {
+                const touchY = e.touches[0].clientY;
+                if (touchY > touchStartY && window.scrollY === 0) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        });
+        
+        function checkVersionAndReload() {
+            const reloadCount = parseInt(sessionStorage.getItem(window.RELOAD_KEY)) || 0;
+
+            if (typeof window.LAUNCHER_VERSION !== 'undefined') {
+                if (window.LAUNCHER_VERSION !== window.HTML_VERSION) {
+                    if (reloadCount < window.MAX_RELOAD) {
+                        sessionStorage.setItem(window.RELOAD_KEY, reloadCount + 1);
+                        alert(`バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`);
+                        location.reload(true);
+                    } else {
+                        sessionStorage.removeItem(window.RELOAD_KEY);
+                        alert(`バージョンが一致しません。旧バージョンのツールを読み込みます。\n少し時間をおいて再読み込みしてください。`);
+                        console.warn(`Version mismatch: LAUNCHER=${window.LAUNCHER_VERSION}, HTML=${window.HTML_VERSION} - 上限に達したため継続`);
+                    }
+                } else {
+                    sessionStorage.removeItem(window.RELOAD_KEY);
+                }
+            } else {
+                // ランチャー未到着時は待機 — ランチャー側が到着時に 'launcher-ready' を通知する
+                console.warn('Launcher not ready yet for version check');
+            }
+        }
+
+        // ========== 控えめなトースト通知（画面占有モーダルは使わない） ==========
+        // alert/confirmは一部環境（PWA standalone等）でブロックされたり
+        // 操作感を損ねたりするため、自前DOM要素で完結させる。
+        window.dqxShowToast = function(message, opts) {
+            opts = opts || {};
+            const duration = opts.duration || 5000;
+            const variant = opts.variant || 'info'; // 'info' | 'success'
+
+            let toast = document.getElementById('dqx-update-toast');
+            if (toast) toast.remove();
+
+            toast = document.createElement('div');
+            toast.id = 'dqx-update-toast';
+            if (variant === 'success') toast.classList.add('dqx-toast-success');
+            toast.innerHTML = `
+                <span class="dqx-toast-icon">${variant === 'success' ? '✅' : 'ℹ️'}</span>
+                <span class="dqx-toast-body">${message}</span>
+                <button class="dqx-toast-close" aria-label="閉じる">✕</button>
+            `;
+            document.body.appendChild(toast);
+
+            requestAnimationFrame(() => toast.classList.add('show'));
+
+            const hide = () => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 320);
+            };
+            toast.querySelector('.dqx-toast-close').onclick = hide;
+            if (duration > 0) setTimeout(hide, duration);
+        };
+
+        // ========== Service Worker 登録（PWA / オフライン対応） ==========
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => {
+                        console.log('[SW] registered:', reg.scope);
+                    })
+                    .catch((e) => {
+                        console.warn('[SW] registration failed:', e);
+                    });
+            });
+        }
+
+        // ========== 起動時オンラインチェック：tools-manifest.json ==========
+        // ・取得成功 → バージョン/ツール一覧の差分を window.DQX_REMOTE_MANIFEST に格納
+        //   launcher.js 側の登録処理がこれを見て新規ツールを反映する。
+        // ・取得失敗（オフライン等）→ 操作はブロックせず、控えめな通知のみ。
+        //   キャッシュ済み（または埋め込みのハードコード）情報でそのまま起動継続。
+        window.DQX_REMOTE_MANIFEST = null;
+        window.DQX_MANIFEST_FETCH_PROMISE = (function() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+            return fetch('./tools-manifest.json', { cache: 'no-store', signal: controller.signal })
+                .then((res) => {
+                    clearTimeout(timeoutId);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.json();
+                })
+                .then((data) => {
+                    window.DQX_REMOTE_MANIFEST = data;
+                    return data;
+                })
+                .catch((e) => {
+                    clearTimeout(timeoutId);
+                    console.warn('[DQX] tools-manifest.json 取得失敗。オフライン/キャッシュ版で起動します。', e);
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // ローディングの邪魔をしないよう少し遅らせて表示
+                        setTimeout(() => {
+                            window.dqxShowToast('オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。');
+                        }, 600);
+                    });
+                    return null;
+                });
+        })();
+
+        const skipMaintenance = localStorage.getItem('dqx_dev_mode') === 'true';
+        const START_DATE = new Date('2026-05-21T12:30:00');
+        const END_DATE   = new Date('2026-05-21T16:00:00');
+        const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
+
+        if (MAINTENANCE_MODE && !skipMaintenance) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0; left: 0;
+                    width: 100%; height: 100%;
+                    background: rgba(0, 0, 0, 0.85);
+                    z-index: 10000;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    flex-direction: column;
+                    font-family: sans-serif;
+                `;
+                overlay.innerHTML = `<div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">メンテナンス中<br>12:30〜16:00</div>`;
+                document.body.appendChild(overlay);
+            });
+        }
+
+        // ツール定義（ファイル名, グローバル名, 表示名, アイコン）
+        const TEST_TOOLS = [
+            { file: 'testtool.js', globalName: 'DQtool', name: '構成保存', icon: '📊' },
+            { file: 'testtool2.js', globalName: 'DQtool2', name: 'テスト空枠', icon: '💿' },
+            { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール', icon: '🛠️' }
+        ];
+        
+        // ランチャー到着時にバージョンチェックを実行
+        window.addEventListener('launcher-ready', checkVersionAndReload);
+        // 既にランチャーが読み込まれている場合は即時チェック
+        window.addEventListener('load', function() {
+            if (typeof window.LAUNCHER_VERSION !== 'undefined') checkVersionAndReload();
+        });
+
+        // ========== リモートマニフェストのバージョンとローカル版を比較 ==========
+        // tools-manifest.json の launcherVersion がローカルの LAUNCHER_VERSION と
+        // 異なる場合、新しいツール本体（launcher.js等）がサーバー上にデプロイ済み
+        // であることを示す。キャッシュ更新は Service Worker が裏で行うため、
+        // ここではユーザーに「更新があります」と知らせるだけに留める。
+        window.DQX_MANIFEST_FETCH_PROMISE.then((data) => {
+            if (!data || !data.launcherVersion) return;
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(() => {
+                    const localVersion = window.LAUNCHER_VERSION || window.HTML_VERSION;
+                    if (localVersion && data.launcherVersion !== localVersion) {
+                        window.dqxShowToast(
+                            `新しいバージョン（${data.launcherVersion}）が利用可能です。再読み込みすると更新されます。`,
+                            { duration: 8000 }
+                        );
+                    }
+                }, 1000);
+            });
+        });
+    </script>
+</head>
+<body>
+<div id="dqx-app"></div>
+<script src="./launcher.js"></script>
+<script>
+// ========== ツール登録（tools-manifest.json と連携） ==========
+// 1. ハードコードされたフォールバック定義（オフライン/取得失敗時に使用）
+const FALLBACK_TOOLS = [
+    { id: 'Checker', name: 'コンテンツ<br>チェッカー', icon: '📋', desc: '進捗管理', url: './tools/checker.js', renderFn: 'Checker.render' },
+    { id: 'exp-m', name: '傭兵用多機能ツール', icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js', renderFn: 'Expmercenary.render' },
+    { id: 'versions', name: '傭兵用多機能ツール<br>旧ver', icon: '📜', desc: '旧verセレクタ', url: './tools/version_selector.js', renderFn: 'VersionSelector.render' },
+    { id: 'help', name: '取扱説明書', icon: '📖', desc: '使い方<br>Q&A', url: './tools/help.js', renderFn: 'Help.render' },
+    { id: 'settings', name: '設定', icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js', renderFn: 'Settings.render' }
+];
+
+function registerAllTools(manifestData) {
+    const toolList = (manifestData && Array.isArray(manifestData.tools) && manifestData.tools.length > 0)
+        ? manifestData.tools
+        : FALLBACK_TOOLS;
+    const testToolList = (manifestData && Array.isArray(manifestData.testTools) && manifestData.testTools.length > 0)
+        ? manifestData.testTools
+        : TEST_TOOLS;
+
+    // 新規ツール検知用：登録前の既知ツールIDを取得
+    const knownIdsRaw = localStorage.getItem('dqx_known_tool_ids');
+    const knownIds = knownIdsRaw ? JSON.parse(knownIdsRaw) : null;
+    const currentIds = toolList.map(t => t.id);
+
+    // 通常ツールの登録
+    toolList.forEach(tool => {
+        DQXTools.register(tool.id, {
+            name: tool.name,
+            icon: tool.icon,
+            desc: tool.desc,
+            url: tool.url,
+            renderFn: tool.renderFn
+        });
+    });
+
+    // テストツールをダミー登録（カード表示用、ツールバー非表示）
+    testToolList.forEach(tool => {
+        DQXTools.register(`test_${tool.file}`, {
+            name: `${tool.name} 🔒`,
+            icon: tool.icon,
+            desc: 'API認証',
+            url: '',
+            renderFn: '',
+            hideInMenu: true,
+            requiresToken: true,
+            testToolConfig: {
+                filename: tool.file,
+                globalName: tool.globalName
+            }
+        });
+    });
+
+    DQXTools.init('dqx-app');
+
+    // 既知リストとの差分があれば「新しいツールが追加されました」通知
+    // （初回起動時(knownIds === null)は通知しない）
+    if (knownIds !== null) {
+        const newIds = currentIds.filter(id => !knownIds.includes(id));
+        if (newIds.length > 0) {
+            const newNames = toolList
+                .filter(t => newIds.includes(t.id))
+                .map(t => t.name.replace(/<br>/g, ''))
+                .join('、');
+            setTimeout(() => {
+                window.dqxShowToast(`新しいツールが追加されました：${newNames}`, { variant: 'success', duration: 7000 });
+            }, 800);
+        }
+    }
+    localStorage.setItem('dqx_known_tool_ids', JSON.stringify(currentIds));
+}
+
+window.addEventListener('load', function() {
+    // tools-manifest.json の取得を待ってから登録（最大6秒でタイムアウト済み）
+    // これにより「起動時オンライン接続でバージョン/新規ツールを確認」を実現しつつ、
+    // 取得に失敗してもフォールバック定義で確実に起動する。
+    window.DQX_MANIFEST_FETCH_PROMISE
+        .then((data) => registerAllTools(data))
+        .catch(() => registerAllTools(null));
+});
+</script>
+<!-- デバッグツール（?debug=1 または ?eruda で有効） -->
+<script>
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const enableDebug = urlParams.has('debug') || urlParams.has('eruda');
+    
+    if (enableDebug) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+        script.onload = function() {
+            eruda.init();
+            console.log('デバッグモード有効 - 幅:', window.innerWidth);
+        };
+        document.head.appendChild(script);
+    }
+})();
+</script>
+</body>
+</html>

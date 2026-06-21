@@ -1,0 +1,57 @@
+{
+  "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
+  "launcherVersion": "3.2.4β",
+  "updatedAt": "2026-06-21",
+  "tools": [
+    {
+      "id": "Checker",
+      "name": "コンテンツ<br>チェッカー",
+      "icon": "📋",
+      "desc": "進捗管理",
+      "url": "./tools/checker.js",
+      "renderFn": "Checker.render",
+      "cache": true
+    },
+    {
+      "id": "exp-m",
+      "name": "傭兵用多機能ツール",
+      "icon": "⚔️",
+      "desc": "経験値計算<br>タイマー",
+      "url": "./tools/expmercenary.js",
+      "renderFn": "Expmercenary.render",
+      "cache": true
+    },
+    {
+      "id": "versions",
+      "name": "傭兵用多機能ツール<br>旧ver",
+      "icon": "📜",
+      "desc": "旧verセレクタ",
+      "url": "./tools/version_selector.js",
+      "renderFn": "VersionSelector.render",
+      "cache": true
+    },
+    {
+      "id": "help",
+      "name": "取扱説明書",
+      "icon": "📖",
+      "desc": "使い方<br>Q&A",
+      "url": "./tools/help.js",
+      "renderFn": "Help.render",
+      "cache": true
+    },
+    {
+      "id": "settings",
+      "name": "設定",
+      "icon": "⚙️",
+      "desc": "キャッシュ<br>フィードバック",
+      "url": "./tools/settings.js",
+      "renderFn": "Settings.render",
+      "cache": true
+    }
+  ],
+  "testTools": [
+    { "file": "testtool.js", "globalName": "DQtool", "name": "構成保存", "icon": "📊" },
+    { "file": "testtool2.js", "globalName": "DQtool2", "name": "テスト空枠", "icon": "💿" },
+    { "file": "testtool3.js", "globalName": "DQtool3", "name": "職人ツール", "icon": "🛠️" }
+  ]
+}

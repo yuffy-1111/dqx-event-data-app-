@@ -1,0 +1,575 @@
+/* ========== ランチャー共通スタイル ========== */
+html, body {
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
+    touch-action: manipulation;
+}
+/* ----- ホーム画面 ----- */
+.home-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.home-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #ddd;
+}
+
+.home-title {
+    font-size: 1.8rem;
+    margin: 0;
+    background: linear-gradient(135deg, #0066cc, #00aaff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.dark-toggle-btn {
+    background: #0066cc;
+    border: none;
+    border-radius: 40px;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+.dark-toggle-btn:hover {
+    background: #0052a3;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.manage-btn {
+    background: #0066cc;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+.manage-btn:hover {
+    background: #0052a3;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.manage-btn:active {
+    background: #003d7a;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 20px;
+    flex: 1;
+    margin-bottom: 40px;
+}
+
+/* ===== カード内部の余白を完全撲滅 ===== */
+.tool-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(5px);
+    border-radius: 20px;
+    padding: 0;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 102, 204, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    aspect-ratio: 1 / 0.8;
+    gap: 4px;
+}
+
+.tool-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+    border-color: #0066cc;
+}
+
+.tool-card-icon {
+    font-size: 48px;
+    margin: 0;
+    line-height: 1;
+    display: block;
+}
+
+.tool-card-name {
+    font-size: 16px;
+    font-weight: bold;
+    margin: 0;
+    color: #0066cc;
+    line-height: 1.2;
+    display: block;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+}
+
+.tool-card-desc {
+    font-size: 11px;
+    color: #666;
+    margin: 0;
+    line-height: 1.2;
+    display: block;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+}
+
+/* グレーアウト */
+.tool-card-disabled {
+    opacity: 0.5;
+    filter: grayscale(0.3);
+}
+
+.home-footer {
+    text-align: center;
+    padding: 16px;
+    font-size: 12px;
+    color: #888;
+    border-top: 1px solid #ddd;
+}
+
+/* ----- ツールメニュー（PC:右サイドバー） ----- */
+.tool-menu-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 90px;
+    background: rgba(30, 30, 50, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* 右サイドバー内のスクロールエリア */
+.tool-menu-sidebar-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 5px;
+    scrollbar-width: thin;
+}
+
+.tool-menu-sidebar-scroll::-webkit-scrollbar {
+    width: 3px;
+}
+
+.tool-menu-sidebar-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.tool-menu-sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+
+/* 右サイドバー内の固定ボタンエリア */
+.tool-menu-sidebar-fixed {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ----- ツールメニュー（スマホ:下部） ----- */
+.tool-menu-bottom {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(30, 30, 50, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    z-index: 1000;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* 左側のスクロールエリア */
+.tool-menu-scroll {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    gap: 5px;
+    padding: 8px 8px 8px 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.tool-menu-scroll::-webkit-scrollbar {
+    height: 3px;
+}
+
+.tool-menu-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.tool-menu-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+
+/* 右側の固定ボタンエリア */
+.tool-menu-fixed {
+    flex-shrink: 0;
+    display: flex;
+    gap: 5px;
+    padding: 8px 12px 8px 8px;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tool-menu-bottom .tool-menu-btn {
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 10px;
+    font-size: 20px;
+    min-width: 55px;
+}
+
+.tool-menu-bottom .menu-btn-label {
+    display: block;
+    font-size: 9px;
+    margin-top: 2px;
+}
+
+.tool-menu-fixed .tool-menu-btn {
+    min-width: 50px;
+}
+
+/* ----- メニューボタン共通 ----- */
+.tool-menu-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 8px 6px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 20px;
+    transition: all 0.2s;
+    min-width: 50px;
+    overflow: visible;
+}
+
+.tool-menu-sidebar .tool-menu-btn {
+    width: 86px;
+    white-space: normal;
+}
+
+.tool-menu-sidebar .menu-btn-label {
+    font-size: 10px;
+    white-space: normal;
+    word-break: break-all;
+    text-align: center;
+    line-height: 1.3;
+    max-width: 78px;
+}
+
+.tool-menu-bottom .tool-menu-btn {
+    flex: 1;
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 4px;
+    font-size: 22px;
+}
+
+.menu-btn-label {
+    font-size: 11px;
+    font-weight: normal;
+}
+
+.tool-menu-bottom .menu-btn-label {
+    display: none;
+}
+
+.tool-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.02);
+}
+
+.tool-menu-btn.active {
+    background: #0066cc;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.4);
+}
+
+.home-btn {
+    margin-top: auto;
+}
+
+.tool-menu-bottom .home-btn {
+    margin-top: 0;
+}
+
+.dark-mode-btn {
+    margin-top: 0;
+}
+
+.tool-menu-bottom .dark-mode-btn {
+    margin-top: 0;
+}
+
+/* ----- サイドバー格納用フロートボタン ----- */
+.sidebar-float-btn {
+    position: fixed;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 999;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(30, 30, 50, 0.85);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 16px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    backdrop-filter: blur(5px);
+}
+
+.sidebar-float-btn:hover {
+    background: rgba(0, 102, 204, 0.8);
+    transform: translateY(-50%) scale(1.05);
+}
+
+/* 格納状態を強制的に復元するためのユーティリティクラス */
+body.sidebar-hidden .tool-menu-sidebar {
+    display: none !important;
+}
+body.sidebar-hidden .sidebar-float-btn {
+    display: flex !important;
+}
+
+/* ----- ダークモード対応 ----- */
+body.dark-mode .home-title {
+    background: linear-gradient(135deg, #60a5fa, #38bdf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+body.dark-mode .tool-card {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .tool-card-name {
+    color: #60a5fa;
+}
+
+body.dark-mode .tool-card-desc {
+    color: #94a3b8;
+}
+
+body.dark-mode .home-header {
+    border-bottom-color: #334155;
+}
+
+body.dark-mode .home-footer {
+    border-top-color: #334155;
+    color: #64748b;
+}
+
+body.dark-mode .tool-menu-sidebar,
+body.dark-mode .tool-menu-bottom {
+    background: rgba(15, 23, 42, 0.95);
+    border-left-color: #1e293b;
+    border-top-color: #1e293b;
+}
+
+body.dark-mode .sidebar-float-btn {
+    background: rgba(15, 23, 42, 0.9);
+    border-color: #334155;
+    color: #94a3b8;
+}
+
+body.dark-mode .sidebar-float-btn:hover {
+    background: rgba(0, 102, 204, 0.7);
+    color: white;
+}
+
+/* ----- レスポンシブ調整（スマホ:3列＋折り返し許可＋説明文表示） ----- */
+@media (max-width: 768px) {
+    body {
+        padding-top: 0 !important;
+    }
+    
+    #dqx-tool-container {
+        margin-top: -2px !important;
+    }
+    
+    .home-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 20px;
+        grid-auto-rows: minmax(auto, auto);
+    }
+    
+    .tool-card {
+        aspect-ratio: auto;
+        min-height: 100px;
+        padding: 10px 6px;
+        gap: 6px;
+    }
+    
+    .tool-card-icon {
+        font-size: 32px;
+        margin: 0;
+    }
+    
+    .tool-card-name {
+        font-size: 10px;
+        margin: 0;
+        line-height: 1.3;
+        white-space: normal;
+        word-break: break-word;
+    }
+    
+    .tool-card-desc {
+        display: block;
+        font-size: 9px;
+        line-height: 1.2;
+        margin-top: 2px;
+    }
+    
+    .home-title {
+        font-size: 1.4rem;
+    }
+    
+    .home-header {
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+    }
+
+    .sidebar-float-btn {
+        display: none !important;
+    }
+}
+
+/* expmercenary のダークモード定義の button !important を上書き */
+body.dark-mode #tool-menu-bar .tool-menu-btn {
+    background: transparent !important;
+    color: white !important;
+}
+
+body.dark-mode #tool-menu-bar .tool-menu-btn.active {
+    background: #0066cc !important;
+    color: white !important;
+}
+
+body.dark-mode #tool-menu-bar .tool-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+}
+.ref-table-grid {
+    display: flex;
+    gap: 16px;
+    max-width: 100%;
+}
+
+.ref-table-card {
+    flex: 0 0 32%;
+    background: #f8f9fc;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.ref-table-title {
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
+    color: #0066cc;
+    margin-bottom: 10px;
+}
+
+.ref-table-img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+}
+
+/* ダークモード */
+body.dark-mode .home-header {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .dark-toggle-btn {
+    background: #00aaff;
+    color: #000;
+}
+
+body.dark-mode .dark-toggle-btn:hover {
+    background: #0088cc;
+    color: #fff;
+}
+
+body.dark-mode .manage-btn {
+    background: #00aaff;
+    color: #000;
+}
+
+body.dark-mode .manage-btn:hover {
+    background: #0088cc;
+    color: #fff;
+}
+
+body.dark-mode .manage-btn:active {
+    background: #006699;
+    color: #fff;
+}
+
+body.dark-mode .ref-table-card {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+body.dark-mode .ref-table-title {
+    color: #60a5fa !important;
+}
+
+/* スマホで幅100% */
+@media (max-width: 768px) {
+    .ref-table-card {
+        flex: 1 1 100%;
+    }
+}
