@@ -10,7 +10,7 @@
             if (!container) return;
 
             // スタイルを先に注入（DOM生成前）
-            this._injectStyle();
+            Install._injectStyle();
 
             container.innerHTML = `
                 <div class="install-container">
@@ -92,8 +92,8 @@
                 </div>
             `;
 
-            this._bindTabs(container);
-            this._bindInstallButtons();
+            Install._bindTabs(container);
+            Install._bindInstallButtons();
         },
 
         _bindTabs: function(container) {
@@ -169,18 +169,18 @@
                 });
             };
 
-            this._onBeforeInstall = (e) => {
+            Install._onBeforeInstall = (e) => {
                 e.preventDefault();
-                this._deferredPrompt = e;
+                Install._deferredPrompt = e;
                 renderActionButtons();
             };
-            this._onAppInstalled = () => {
-                this._deferredPrompt = null;
+            Install._onAppInstalled = () => {
+                Install._deferredPrompt = null;
                 renderActionButtons();
             };
 
-            window.addEventListener('beforeinstallprompt', this._onBeforeInstall);
-            window.addEventListener('appinstalled', this._onAppInstalled);
+            window.addEventListener('beforeinstallprompt', Install._onBeforeInstall);
+            window.addEventListener('appinstalled', Install._onAppInstalled);
 
             renderActionButtons();
         },
@@ -296,13 +296,13 @@
         },
 
         destroy: function() {
-            if (this._onBeforeInstall) {
-                window.removeEventListener('beforeinstallprompt', this._onBeforeInstall);
-                this._onBeforeInstall = null;
+            if (Install._onBeforeInstall) {
+                window.removeEventListener('beforeinstallprompt', Install._onBeforeInstall);
+                Install._onBeforeInstall = null;
             }
-            if (this._onAppInstalled) {
-                window.removeEventListener('appinstalled', this._onAppInstalled);
-                this._onAppInstalled = null;
+            if (Install._onAppInstalled) {
+                window.removeEventListener('appinstalled', Install._onAppInstalled);
+                Install._onAppInstalled = null;
             }
         }
     };
