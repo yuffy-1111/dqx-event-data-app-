@@ -64,13 +64,16 @@
                             <li>表示されない場合は右上「⋮」→「アプリをインストール」</li>
                             <li>「インストール」をクリック</li>
                         </ol>
-                        <h3>Firefox</h3>
+                        <h3>Firefox（PC）</h3>
+                        <p class="install-note-inline">Firefox PCはブラウザのリンクとしてしか保持できないため、<strong>ローカルファイルとしてダウンロード</strong>して使う方法があります。</p>
                         <ol>
-                            <li>アドレスバー右側、または「⋮」メニューを開く</li>
-                            <li>「このサイトをインストール」または「ホーム画面に追加」を選択</li>
+                            <li>下のボタンからZIPをダウンロードして展開する</li>
+                            <li>展開したフォルダ内の <code>index.html</code> をブラウザで開く</li>
+                            <li>ブックマークに追加しておくと次回から素早く開けます</li>
                         </ol>
+                        <div id="install-pc-download-area"></div>
                         <p class="install-note">
-                            ※ PC版はデスクトップにアイコンが追加され、専用ウィンドウで起動するようになります。
+                            ※ ローカルファイルで開いた場合、Service Worker（オフラインキャッシュ）は動作しません。ファイルを直接開く形式での利用となります。
                         </p>
                     </div>
 
@@ -183,6 +186,17 @@
             window.addEventListener('appinstalled', Install._onAppInstalled);
 
             renderActionButtons();
+
+            // PC Firefoxのローカルダウンロードリンク
+            const dlArea = document.getElementById('install-pc-download-area');
+            if (dlArea) {
+                dlArea.innerHTML = `
+                    <a href="https://github.com/yuffy-1111/dqx-event-data-app-/archive/refs/heads/main.zip"
+                       target="_blank" rel="noopener" class="install-action-btn" style="display:inline-block;text-decoration:none;margin-top:4px;">
+                        📥 ソースをZIPでダウンロード（GitHub）
+                    </a>
+                `;
+            }
         },
 
         _injectStyle: function() {
@@ -262,6 +276,10 @@
                     color: #888;
                     margin-top: 12px;
                 }
+                .install-note-inline { font-size: 13px; color: #555; margin: 0 0 8px 0; line-height: 1.5; }
+                .install-panel code { background: #e8edf2; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+                body.dark-mode .install-note-inline { color: #94a3b8; }
+                body.dark-mode .install-panel code { background: #334155; color: #e2e8f0; }
                 .install-action-btn {
                     background: #0066cc;
                     color: white;

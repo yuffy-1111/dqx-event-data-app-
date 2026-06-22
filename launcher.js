@@ -241,9 +241,11 @@ const DQXTools = {
             <div class="home-container">
                 <div class="home-header">
                     <h1 class="home-title">🎮 DQXツール</h1>
-                    <div style="display:flex;gap:8px;align-items:center;">
+                    <div class="home-header-actions">
                         <button id="open-manage-link" class="manage-btn">カード編集</button>
                         <button id="global-dark-toggle" class="dark-toggle-btn">${this.darkMode ? '☀️' : '🌙'}</button>
+                        <div id="dqx-net-status" class="dqx-net-dot dqx-net-checking" aria-label="バージョン状態">⏳</div>
+                        <div id="dqx-net-popover"></div>
                     </div>
                 </div>
                 <div class="home-grid">
@@ -261,12 +263,39 @@ const DQXTools = {
             toggleBtn.onclick = () => this.toggleDarkMode();
         }
 
+        // インジケーターの状態を即時反映＋ポップオーバーのクリック設定
+        const netDot = document.getElementById('dqx-net-status');
+        const netPopover = document.getElementById('dqx-net-popover');
+        if (netDot && netPopover) {
+            if (window.dqxUpdateNetIndicator) window.dqxUpdateNetIndicator();
+            netDot.onclick = (e) => {
+                e.stopPropagation();
+                netPopover.classList.toggle('show');
+            };
+            document.addEventListener('click', (e) => {
+                if (!netDot.contains(e.target) && !netPopover.contains(e.target)) {
+                    netPopover.classList.remove('show');
+                }
+            }, { once: false });
+        }
+
         const footerInstallLink = document.getElementById('footer-install-link');
         if (footerInstallLink) {
             footerInstallLink.onclick = (e) => {
                 e.preventDefault();
-                if (this.tools['install']) {
+                // クリック時点でtools['install']を参照（登録タイミングに依存しない）
+                if (this.tools && this.tools['install']) {
                     this.loadTool('install');
+                } else {
+                    // まだ登録されていない場合はマニフェスト取得完了後にリトライ
+                    const tryLoad = () => {
+                        if (this.tools && this.tools['install']) {
+                            this.loadTool('install');
+                        }
+                    };
+                    if (window.DQX_MANIFEST_FETCH_PROMISE) {
+                        window.DQX_MANIFEST_FETCH_PROMISE.then(tryLoad);
+                    }
                 }
             };
         }
@@ -582,6 +611,9 @@ const DQXTools = {
         if (!tool) return;
         if (this.currentTool === toolId) return;
 
+        // ツール遷移時にバージョン確認（結果はインジケーターに反映）
+        if (window.dqxCheckVersion) window.dqxCheckVersion();
+
         if (tool.hideInMenu && tool.testToolConfig) {
             this.destroyCurrentTool();
             const oldContainer = document.getElementById('dqx-tool-container');
@@ -708,7 +740,7 @@ const DQXTools = {
     },
 
     removeOldToolScripts: function(url) {
-        const cacheBustUrl = url + '?v=' + APP_VERSION;
+        const cacheBustUrl = url + '?v=' + encodeURIComponent(APP_VERSION);
         const rawUrl = url;
 
         document.querySelectorAll(`script[src="${cacheBustUrl}"]`).forEach(script => script.remove());
@@ -736,7 +768,7 @@ const DQXTools = {
             }
         }
 
-        const cacheBustUrl = url + '?v=' + APP_VERSION;
+        const cacheBustUrl = url + '?v=' + encodeURIComponent(APP_VERSION);
         return new Promise((resolve, reject) => {
             const existing = document.querySelector(`script[src="${cacheBustUrl}"]`);
             if (existing) {

@@ -5,18 +5,20 @@ html, body {
     touch-action: manipulation;
 }
 
-/* ----- ネットワーク状態インジケーター（常時表示） ----- */
-#dqx-net-status {
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    z-index: 9500;
+/* ----- ネットワーク状態インジケーター（ヘッダー内常設） ----- */
+.home-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    position: relative;
+}
+
+.dqx-net-dot {
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(6px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    background: rgba(255,255,255,0.9);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -24,26 +26,18 @@ html, body {
     cursor: pointer;
     border: 1px solid rgba(0,0,0,0.06);
     transition: transform 0.15s;
+    flex-shrink: 0;
+    user-select: none;
 }
-#dqx-net-status:hover {
-    transform: scale(1.08);
-}
-#dqx-net-status.dqx-net-online {
-    box-shadow: 0 2px 8px rgba(34,197,94,0.35);
-}
-#dqx-net-status.dqx-net-offline {
-    box-shadow: 0 2px 8px rgba(245,158,11,0.4);
-}
-body.dark-mode #dqx-net-status {
-    background: rgba(30, 41, 59, 0.92);
-    border-color: rgba(255,255,255,0.08);
-}
+.dqx-net-dot:hover { transform: scale(1.08); }
+.dqx-net-dot.dqx-net-latest  { box-shadow: 0 2px 8px rgba(34,197,94,0.4); }
+.dqx-net-dot.dqx-net-update  { box-shadow: 0 2px 8px rgba(59,130,246,0.4); }
+.dqx-net-dot.dqx-net-offline { box-shadow: 0 2px 8px rgba(245,158,11,0.4); }
 
-/* ネットワーク状態の詳細ポップオーバー */
 #dqx-net-popover {
-    position: fixed;
-    top: 48px;
-    right: 12px;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
     z-index: 9500;
     width: 240px;
     background: #fff;
@@ -55,38 +49,34 @@ body.dark-mode #dqx-net-status {
     color: #333;
     display: none;
 }
-#dqx-net-popover.show {
-    display: block;
-}
+#dqx-net-popover.show { display: block; }
 #dqx-net-popover .dqx-net-row {
     display: flex;
     justify-content: space-between;
     gap: 8px;
     margin: 4px 0;
 }
-#dqx-net-popover .dqx-net-label {
-    color: #888;
+#dqx-net-popover .dqx-net-label { color: #888; }
+
+body.dark-mode .dqx-net-dot {
+    background: rgba(30, 41, 59, 0.92);
+    border-color: rgba(255,255,255,0.08);
 }
 body.dark-mode #dqx-net-popover {
     background: #1e293b;
     color: #cbd5e1;
 }
-body.dark-mode #dqx-net-popover .dqx-net-label {
-    color: #94a3b8;
-}
+body.dark-mode #dqx-net-popover .dqx-net-label { color: #94a3b8; }
 
 @media (max-width: 768px) {
-    #dqx-net-status {
-        top: 10px;
-        right: 10px;
+    .dqx-net-dot {
         width: 26px;
         height: 26px;
         font-size: 12px;
     }
     #dqx-net-popover {
-        top: 42px;
-        right: 10px;
-        width: 220px;
+        width: 210px;
+        right: -4px;
     }
 }
 

@@ -277,57 +277,82 @@
         // ========== 常時表示：ネットワーク状態インジケーター ==========
         // 画面右上に小さな丸を常設。タップで詳細（最終確認時刻・保存件数など）を表示。
         // 状態：オンライン(🟢) / オフライン(🟠)
-        window.DQX_LAST_MANIFEST_CHECK = null; // 最後にtools-manifest.jsonを確認できた時刻
-        window.DQX_LAST_MANIFEST_OK = null;     // その確認が成功したかどうか
+        window.DQX_LAST_MANIFEST_CHECK = null;
+        window.DQX_LAST_MANIFEST_OK = null;
+        // 'latest'（最新）/ 'update'（更新あり）/ 'offline'（オフライン）/ 'checking'（確認中）
+        window.DQX_NET_STATE = 'checking';
 
+        // ヘッダー内のインジケーターを更新する関数
+        // fixed配置はやめてヘッダー内に組み込む（スマホでのボタン被り解消）
         window.dqxUpdateNetIndicator = function() {
-            let dot = document.getElementById('dqx-net-status');
-            if (!dot) {
-                dot = document.createElement('div');
-                dot.id = 'dqx-net-status';
-                dot.setAttribute('aria-label', 'オンライン状態');
-                document.body.appendChild(dot);
-
-                const popover = document.createElement('div');
-                popover.id = 'dqx-net-popover';
-                document.body.appendChild(popover);
-
-                dot.onclick = () => {
-                    popover.classList.toggle('show');
-                };
-                document.addEventListener('click', (e) => {
-                    if (!dot.contains(e.target) && !popover.contains(e.target)) {
-                        popover.classList.remove('show');
-                    }
-                });
-            }
-
-            const online = navigator.onLine;
-            dot.classList.toggle('dqx-net-online', online);
-            dot.classList.toggle('dqx-net-offline', !online);
-            dot.textContent = online ? '🟢' : '🟠';
-
+            const dot = document.getElementById('dqx-net-status');
             const popover = document.getElementById('dqx-net-popover');
+            if (!dot) return;
+
+            const state = window.DQX_NET_STATE;
+            const icon = { checking: '⏳', latest: '🟢', update: '🔵', offline: '🟠' }[state] || '⏳';
+            const online = navigator.onLine;
+
+            dot.textContent = icon;
+            dot.className = 'dqx-net-dot';
+            dot.classList.add(`dqx-net-${state}`);
+
             if (popover) {
                 const lastCheck = window.DQX_LAST_MANIFEST_CHECK
                     ? window.DQX_LAST_MANIFEST_CHECK.toLocaleTimeString('ja-JP')
                     : '未確認';
-                const manifestStatus = window.DQX_LAST_MANIFEST_OK === null
-                    ? '確認中…'
-                    : (window.DQX_LAST_MANIFEST_OK ? '✅ 最新情報あり' : '⚠️ 取得失敗（保存データで起動）');
+                const statusText = {
+                    checking: '⏳ 確認中…',
+                    latest:   '🟢 最新',
+                    update:   '🔵 更新があります（再読み込みで適用）',
+                    offline:  '🟠 オフラインのため取得不可'
+                }[state] || '⏳ 確認中…';
 
                 popover.innerHTML = `
-                    <div class="dqx-net-row"><span class="dqx-net-label">接続状態</span><span>${online ? '🟢 オンライン' : '🟠 オフライン'}</span></div>
-                    <div class="dqx-net-row"><span class="dqx-net-label">最新情報確認</span><span>${manifestStatus}</span></div>
-                    <div class="dqx-net-row"><span class="dqx-net-label">最終確認時刻</span><span>${lastCheck}</span></div>
+                    <div class="dqx-net-row"><span class="dqx-net-label">接続</span><span>${online ? 'オンライン' : 'オフライン'}</span></div>
+                    <div class="dqx-net-row"><span class="dqx-net-label">バージョン</span><span>${statusText}</span></div>
+                    <div class="dqx-net-row"><span class="dqx-net-label">確認時刻</span><span>${lastCheck}</span></div>
+                    ${state === 'update' ? '<div style="margin-top:8px;"><button id="dqx-reload-btn" style="width:100%;padding:6px;background:#0066cc;color:white;border:none;border-radius:8px;cursor:pointer;font-size:12px;">今すぐ更新</button></div>' : ''}
                 `;
+                const reloadBtn = document.getElementById('dqx-reload-btn');
+                if (reloadBtn) reloadBtn.onclick = () => location.reload(true);
             }
         };
 
-        // 初回描画＋オンライン/オフライン切替に追従
-        document.addEventListener('DOMContentLoaded', window.dqxUpdateNetIndicator);
-        window.addEventListener('online', window.dqxUpdateNetIndicator);
-        window.addEventListener('offline', window.dqxUpdateNetIndicator);
+        // バージョン確認を実行する共通関数（起動時・ツール遷移時に呼ぶ）
+        window.dqxCheckVersion = function() {
+            if (!navigator.onLine) {
+                window.DQX_NET_STATE = 'offline';
+                window.dqxUpdateNetIndicator();
+                return Promise.resolve(null);
+            }
+            window.DQX_NET_STATE = 'checking';
+            window.dqxUpdateNetIndicator();
+
+            return fetch('./tools-manifest.json', { cache: 'no-store' })
+                .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
+                .then(data => {
+                    window.DQX_LAST_MANIFEST_CHECK = new Date();
+                    window.DQX_LAST_MANIFEST_OK = true;
+                    const localVer = window.LAUNCHER_VERSION || window.HTML_VERSION;
+                    const remoteVer = data && data.launcherVersion;
+                    window.DQX_NET_STATE = (remoteVer && localVer && remoteVer !== localVer)
+                        ? 'update' : 'latest';
+                    window.dqxUpdateNetIndicator();
+                    return data;
+                })
+                .catch(() => {
+                    window.DQX_LAST_MANIFEST_CHECK = new Date();
+                    window.DQX_LAST_MANIFEST_OK = false;
+                    window.DQX_NET_STATE = 'offline';
+                    window.dqxUpdateNetIndicator();
+                    return null;
+                });
+        };
+
+        // オンライン/オフライン切替でも状態を更新
+        window.addEventListener('online',  () => window.dqxCheckVersion());
+        window.addEventListener('offline', () => { window.DQX_NET_STATE = 'offline'; window.dqxUpdateNetIndicator(); });
 
         // ========== Service Worker 登録（PWA / オフライン対応） ==========
         if ('serviceWorker' in navigator) {
@@ -342,44 +367,24 @@
             });
         }
 
-        // ========== 起動時オンラインチェック：tools-manifest.json ==========
-        // ・取得成功 → バージョン/ツール一覧の差分を window.DQX_REMOTE_MANIFEST に格納
-        //   launcher.js 側の登録処理がこれを見て新規ツールを反映する。
-        // ・取得失敗（オフライン等）→ 操作はブロックせず、控えめな通知のみ。
-        //   キャッシュ済み（または埋め込みのハードコード）情報でそのまま起動継続。
+        // ========== 起動時オンラインチェック ==========
+        // dqxCheckVersion() を呼び出してバージョン確認＋ツール一覧取得を行う。
+        // 結果は DQX_REMOTE_MANIFEST に格納し、registerAllTools で使用する。
         window.DQX_REMOTE_MANIFEST = null;
-        window.DQX_MANIFEST_FETCH_PROMISE = (function() {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-            return fetch('./tools-manifest.json', { cache: 'no-store', signal: controller.signal })
-                .then((res) => {
-                    clearTimeout(timeoutId);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return res.json();
-                })
-                .then((data) => {
+        window.DQX_MANIFEST_FETCH_PROMISE = window.dqxCheckVersion()
+            .then(data => {
+                if (data) {
                     window.DQX_REMOTE_MANIFEST = data;
-                    window.DQX_LAST_MANIFEST_CHECK = new Date();
-                    window.DQX_LAST_MANIFEST_OK = true;
-                    if (window.dqxUpdateNetIndicator) window.dqxUpdateNetIndicator();
-                    return data;
-                })
-                .catch((e) => {
-                    clearTimeout(timeoutId);
-                    window.DQX_LAST_MANIFEST_CHECK = new Date();
-                    window.DQX_LAST_MANIFEST_OK = false;
-                    if (window.dqxUpdateNetIndicator) window.dqxUpdateNetIndicator();
-                    console.warn('[DQX] tools-manifest.json 取得失敗。オフライン/キャッシュ版で起動します。', e);
+                    // オフラインのみトーストで通知
+                } else if (!navigator.onLine) {
                     document.addEventListener('DOMContentLoaded', function() {
-                        // ローディングの邪魔をしないよう少し遅らせて表示
                         setTimeout(() => {
                             window.dqxShowToast('オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。');
                         }, 600);
                     });
-                    return null;
-                });
-        })();
+                }
+                return data;
+            });
 
         const skipMaintenance = localStorage.getItem('dqx_dev_mode') === 'true';
         const START_DATE = new Date('2026-05-21T12:30:00');
