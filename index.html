@@ -420,25 +420,14 @@
             if (typeof window.LAUNCHER_VERSION !== 'undefined') checkVersionAndReload();
         });
 
-        // ========== リモートマニフェストのバージョンとローカル版を比較 ==========
-        // tools-manifest.json の launcherVersion がローカルの LAUNCHER_VERSION と
-        // 異なる場合、新しいツール本体（launcher.js等）がサーバー上にデプロイ済み
-        // であることを示す。キャッシュ更新は Service Worker が裏で行うため、
-        // ここではユーザーに「更新があります」と知らせるだけに留める。
-        window.DQX_MANIFEST_FETCH_PROMISE.then((data) => {
-            if (!data || !data.launcherVersion) return;
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(() => {
-                    const localVersion = window.LAUNCHER_VERSION || window.HTML_VERSION;
-                    if (localVersion && data.launcherVersion !== localVersion) {
-                        window.dqxShowToast(
-                            `新しいバージョン（${data.launcherVersion}）が利用可能です。再読み込みすると更新されます。`,
-                            { duration: 8000 }
-                        );
-                    }
-                }, 1000);
-            });
-        });
+        // ========== 更新検知の主軸 ==========
+        // index.html を network-first（Service Worker側）で常に最新取得し、
+        // HTML_VERSION と launcher.js の LAUNCHER_VERSION の不一致を
+        // checkVersionAndReload() で検知 → 自動で再読み込みする。
+        // これにより js/css 等の周辺ファイルも合わせて最新化される。
+        // tools-manifest.json は「ツール一覧・アイコン・説明文」の情報源として
+        // 引き続き個別fetchするが、バージョン不一致の通知トリガーとしては使わない
+        // （二重通知を避けるため）。
     </script>
 </head>
 <body>
@@ -453,7 +442,7 @@ const FALLBACK_TOOLS = [
     { id: 'versions', name: '傭兵用多機能ツール<br>旧ver', icon: '📜', desc: '旧verセレクタ', url: './tools/version_selector.js', renderFn: 'VersionSelector.render' },
     { id: 'help', name: '取扱説明書', icon: '📖', desc: '使い方<br>Q&A', url: './tools/help.js', renderFn: 'Help.render' },
     { id: 'settings', name: '設定', icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js', renderFn: 'Settings.render' },
-    { id: 'install', name: 'アプリの<br>使い方', icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js', renderFn: 'Install.render' }
+    { id: 'install', name: 'アプリの<br>使い方', icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js', renderFn: 'Install.render', hideInMenu: true }
 ];
 
 function registerAllTools(manifestData) {
@@ -470,13 +459,16 @@ function registerAllTools(manifestData) {
     const currentIds = toolList.map(t => t.id);
 
     // 通常ツールの登録
+    // hideInMenu: true のツール（例：アプリの使い方）はホーム画面のカード一覧や
+    // ツールメニューには出さず、フッターリンク等から個別に loadTool() で呼び出す。
     toolList.forEach(tool => {
         DQXTools.register(tool.id, {
             name: tool.name,
             icon: tool.icon,
             desc: tool.desc,
             url: tool.url,
-            renderFn: tool.renderFn
+            renderFn: tool.renderFn,
+            hideInMenu: !!tool.hideInMenu
         });
     });
 

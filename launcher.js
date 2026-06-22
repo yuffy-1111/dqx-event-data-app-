@@ -176,7 +176,12 @@ const DQXTools = {
         };
         
         // URLパラメータによるフィルタリング: ?show=ToolA,ToolB&includeTest=true
-        let toolEntries = Object.entries(this.tools);
+        // hideInMenu かつ testToolConfig を持たないツール（例：アプリの使い方）は
+        // ホーム画面のカード一覧から除外する。テストツール（鍵アイコン付き）は
+        // 従来通りカードとして表示する。
+        let toolEntries = Object.entries(this.tools).filter(([id, tool]) => {
+            return !(tool.hideInMenu && !tool.testToolConfig);
+        });
         try {
             const params = new URLSearchParams(window.location.search);
             const showParam = params.get('show');

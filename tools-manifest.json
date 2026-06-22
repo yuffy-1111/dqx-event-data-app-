@@ -55,7 +55,8 @@
       "desc": "ホーム画面に<br>追加する方法",
       "url": "./tools/install.js",
       "renderFn": "Install.render",
-      "cache": true
+      "cache": true,
+      "hideInMenu": true
     }
   ],
   "testTools": [

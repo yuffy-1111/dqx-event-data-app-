@@ -9,6 +9,9 @@
             const container = document.querySelector(containerSelector);
             if (!container) return;
 
+            // スタイルを先に注入（DOM生成前）
+            this._injectStyle();
+
             container.innerHTML = `
                 <div class="install-container">
                     <h2>📲 アプリとして使う</h2>
@@ -20,14 +23,14 @@
                     <div id="install-standalone-badge"></div>
 
                     <div class="install-tabs" role="tablist">
-                        <button class="install-tab active" data-target="tab-android">📱 Android</button>
+                        <button class="install-tab" data-target="tab-android">📱 Android</button>
                         <button class="install-tab" data-target="tab-ios">🍎 iPhone / iPad</button>
                         <button class="install-tab" data-target="tab-pc">💻 PC</button>
                     </div>
 
-                    <div id="tab-android" class="install-panel active">
-                        <h3>Chrome（推奨）</h3>
+                    <div id="tab-android" class="install-panel">
                         <div id="install-android-chrome-action"></div>
+                        <h3>Chrome（推奨）</h3>
                         <ol>
                             <li>右上の「⋮」メニューを開く</li>
                             <li>「アプリをインストール」または「ホーム画面に追加」をタップ</li>
@@ -44,21 +47,21 @@
                     <div id="tab-ios" class="install-panel">
                         <h3>Safari（iPhone標準ブラウザ）</h3>
                         <ol>
-                            <li>画面下部（または上部）の「共有」ボタン（□に↑のアイコン）をタップ</li>
+                            <li>画面下部の「共有」ボタン（□に↑のアイコン）をタップ</li>
                             <li>メニューを下にスクロールして「ホーム画面に追加」をタップ</li>
                             <li>右上の「追加」をタップ</li>
                         </ol>
                         <p class="install-note">
-                            ※ iPhone/iPadでは、Safari以外のブラウザ（Chrome等）からはホーム画面に追加できない場合があります。うまくいかない場合はSafariでお試しください。
+                            ※ iPhone/iPadではSafari以外のブラウザからはホーム画面追加できない場合があります。
                         </p>
                     </div>
 
                     <div id="tab-pc" class="install-panel">
-                        <h3>Chrome / Edge</h3>
                         <div id="install-pc-chrome-action"></div>
+                        <h3>Chrome / Edge</h3>
                         <ol>
-                            <li>アドレスバー右側のインストールアイコン（⊕や画面のようなマーク）をクリック</li>
-                            <li>表示されない場合は右上の「⋮」メニュー →「アプリをインストール」</li>
+                            <li>アドレスバー右側のインストールアイコン（⊕のようなマーク）をクリック</li>
+                            <li>表示されない場合は右上「⋮」→「アプリをインストール」</li>
                             <li>「インストール」をクリック</li>
                         </ol>
                         <h3>Firefox</h3>
@@ -67,7 +70,7 @@
                             <li>「このサイトをインストール」または「ホーム画面に追加」を選択</li>
                         </ol>
                         <p class="install-note">
-                            ※ PC版はOSのアプリ一覧やデスクトップにアイコンが追加され、専用ウィンドウで起動するようになります。
+                            ※ PC版はデスクトップにアイコンが追加され、専用ウィンドウで起動するようになります。
                         </p>
                     </div>
 
@@ -75,21 +78,20 @@
                         <h3>❓ よくある質問</h3>
                         <div class="qa-item">
                             <p class="qa-q">Q. インストールしないと使えない？</p>
-                            <p class="qa-a">A. いいえ、ブラウザで開くだけでも通常通り使えます。インストールは「より便利に使うための追加機能」です。</p>
+                            <p class="qa-a">A. いいえ、ブラウザで開くだけでも通常通り使えます。インストールは任意の追加機能です。</p>
                         </div>
                         <div class="qa-item">
                             <p class="qa-q">Q. オフラインでも使えるの？</p>
-                            <p class="qa-a">A. 一度オンラインで開いたことがあれば、その後はオフラインでも起動できます。テスト用ツール（API認証が必要なもの）はオンライン時のみ利用できます。</p>
+                            <p class="qa-a">A. 一度オンラインで開いたことがあれば、その後はオフラインでも起動できます。API認証が必要なテストツールはオンライン時のみ利用できます。</p>
                         </div>
                         <div class="qa-item">
                             <p class="qa-q">Q. 削除したい場合は？</p>
-                            <p class="qa-a">A. 通常のアプリと同じように、アイコンを長押しして削除できます。データ自体はブラウザ側に残るため、完全に消したい場合は設定の「全キャッシュを削除」もあわせてご利用ください。</p>
+                            <p class="qa-a">A. 通常のアプリと同じようにアイコンを長押しして削除できます。完全に消したい場合は設定の「全キャッシュを削除」もあわせてどうぞ。</p>
                         </div>
                     </div>
                 </div>
             `;
 
-            this._injectStyle();
             this._bindTabs(container);
             this._bindInstallButtons();
         },
@@ -97,17 +99,25 @@
         _bindTabs: function(container) {
             const tabs = container.querySelectorAll('.install-tab');
             const panels = container.querySelectorAll('.install-panel');
+
+            // タブのクリックで切り替え
             tabs.forEach(tab => {
                 tab.onclick = () => {
                     tabs.forEach(t => t.classList.remove('active'));
-                    panels.forEach(p => p.classList.remove('active'));
+                    panels.forEach(p => {
+                        p.classList.remove('active');
+                        p.style.display = 'none';
+                    });
                     tab.classList.add('active');
                     const target = document.getElementById(tab.dataset.target);
-                    if (target) target.classList.add('active');
+                    if (target) {
+                        target.classList.add('active');
+                        target.style.display = 'block';
+                    }
                 };
             });
 
-            // 端末判定で初期タブを自動選択
+            // 端末判定で初期タブを選択（click()ではなく直接状態を設定）
             const ua = navigator.userAgent;
             const isIOS = /iPhone|iPad|iPod/.test(ua) && !window.MSStream;
             const isAndroid = /Android/.test(ua);
@@ -115,8 +125,16 @@
             if (isAndroid) initialTarget = 'tab-android';
             else if (isIOS) initialTarget = 'tab-ios';
 
-            const initialTab = container.querySelector(`.install-tab[data-target="${initialTarget}"]`);
-            if (initialTab) initialTab.click();
+            tabs.forEach(t => t.classList.remove('active'));
+            panels.forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+
+            const activeTab = container.querySelector(`.install-tab[data-target="${initialTarget}"]`);
+            const activePanel = document.getElementById(initialTarget);
+            if (activeTab) activeTab.classList.add('active');
+            if (activePanel) {
+                activePanel.classList.add('active');
+                activePanel.style.display = 'block';
+            }
         },
 
         _bindInstallButtons: function() {
@@ -144,9 +162,6 @@
                             const choice = await self._deferredPrompt.userChoice;
                             self._deferredPrompt = null;
                             renderActionButtons();
-                            if (choice.outcome === 'accepted') {
-                                alert('✅ アプリとして追加しました');
-                            }
                         };
                     } else {
                         el.innerHTML = '';
@@ -176,7 +191,7 @@
             style.id = 'install-style';
             style.textContent = `
                 .install-container {
-                    max-width: 700px;
+                    max-width: 680px;
                     margin: 0 auto;
                     padding: 20px;
                 }
@@ -231,7 +246,7 @@
                     color: #0066cc;
                     margin: 16px 0 8px 0;
                 }
-                .install-panel h3:first-child {
+                .install-panel h3:first-of-type {
                     margin-top: 0;
                 }
                 .install-panel ol {
@@ -256,70 +271,26 @@
                     cursor: pointer;
                     font-size: 13px;
                     margin-bottom: 12px;
+                    display: block;
                 }
-                .install-action-btn:hover {
-                    background: #0052a3;
-                }
-                .install-faq {
-                    margin-top: 24px;
-                }
-                .install-faq h3 {
-                    color: #0066cc;
-                }
-                .qa-item {
-                    margin: 16px 0;
-                }
-                .qa-q {
-                    font-weight: bold;
-                    margin: 0 0 4px 0;
-                    color: #0066cc;
-                }
-                .qa-a {
-                    margin: 0;
-                    padding-left: 16px;
-                    border-left: 3px solid #0066cc;
-                    color: #444;
-                    line-height: 1.5;
-                }
+                .install-action-btn:hover { background: #0052a3; }
+                .install-faq { margin-top: 24px; }
+                .install-faq h3 { color: #0066cc; }
+                .qa-item { margin: 16px 0; }
+                .qa-q { font-weight: bold; margin: 0 0 4px 0; color: #0066cc; }
+                .qa-a { margin: 0; padding-left: 16px; border-left: 3px solid #0066cc; color: #444; line-height: 1.5; }
                 /* ダークモード */
-                body.dark-mode .install-container h2 {
-                    color: #60a5fa;
-                    border-bottom-color: #60a5fa;
-                }
-                body.dark-mode .install-lead {
-                    color: #94a3b8;
-                }
-                body.dark-mode .install-already {
-                    background: #0a3d2c;
-                    color: #6ee7b7;
-                }
-                body.dark-mode .install-tab {
-                    background: #1e293b;
-                    color: #94a3b8;
-                }
-                body.dark-mode .install-tab.active {
-                    background: #60a5fa;
-                    color: #0f172a;
-                }
-                body.dark-mode .install-panel {
-                    background: #1e293b;
-                }
-                body.dark-mode .install-panel h3 {
-                    color: #60a5fa;
-                }
-                body.dark-mode .install-panel li {
-                    color: #cbd5e1;
-                }
-                body.dark-mode .install-note {
-                    color: #94a3b8;
-                }
-                body.dark-mode .qa-q {
-                    color: #60a5fa;
-                }
-                body.dark-mode .qa-a {
-                    border-left-color: #60a5fa;
-                    color: #cbd5e1;
-                }
+                body.dark-mode .install-container h2 { color: #60a5fa; border-bottom-color: #60a5fa; }
+                body.dark-mode .install-lead { color: #94a3b8; }
+                body.dark-mode .install-already { background: #0a3d2c; color: #6ee7b7; }
+                body.dark-mode .install-tab { background: #1e293b; color: #94a3b8; }
+                body.dark-mode .install-tab.active { background: #60a5fa; color: #0f172a; }
+                body.dark-mode .install-panel { background: #1e293b; }
+                body.dark-mode .install-panel h3 { color: #60a5fa; }
+                body.dark-mode .install-panel li { color: #cbd5e1; }
+                body.dark-mode .install-note { color: #94a3b8; }
+                body.dark-mode .qa-q { color: #60a5fa; }
+                body.dark-mode .qa-a { border-left-color: #60a5fa; color: #cbd5e1; }
             `;
             document.head.appendChild(style);
         },

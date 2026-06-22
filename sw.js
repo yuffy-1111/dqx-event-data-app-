@@ -1,12 +1,21 @@
 // ========== DQXツール Service Worker ==========
-// キャッシュ名はバージョンを含める。launcher.js の APP_VERSION と
-// tools-manifest.json の launcherVersion を更新するタイミングで
-// 必ずこの値も更新すること（更新しないと古いキャッシュが残り続ける）。
+//
+// キャッシュ戦略の設計：
+//
+//   network-first（常にサーバーへ、失敗時のみキャッシュ）:
+//     - index.html / ルートナビゲーション  ← 起動の入口。必ず最新を取る
+//     - launcher.js                         ← HTML_VERSION と LAUNCHER_VERSION の整合性チェックの対象
+//     - tools-manifest.json                 ← 新規ツール検知の情報源
+//
+//   cache-first stale-while-revalidate（キャッシュを即返しつつ裏で更新）:
+//     - tools/*.js, icons/, launcher.css など ← バージョン不一致で再読み込みが走れば自動で最新化
+//
+//   完全バイパス（キャッシュしない・読まない）:
+//     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
+
 const CACHE_VERSION = '3.2.5b';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
-// 起動直後に必要な「殻」となるファイル群（通常ツールのみ）
-// テストツール（testtool*.js）は認証必須のため意図的に含めない。
 const PRECACHE_URLS = [
     './',
     './index.html',
@@ -22,18 +31,31 @@ const PRECACHE_URLS = [
     './tools/install.js'
 ];
 
-// このパターンに一致するリクエストはキャッシュせず、常にネットワークへ
-// （テストツール本体、GitHub APIへの認証付きリクエストなど）
 const NEVER_CACHE_PATTERNS = [
     /testtool/i,
     /api\.github\.com/i
 ];
 
+// network-first で扱うファイルのパターン
+// launcher.js は tools/ 配下のツール本体（tools/xxx.js）と区別するため
+// パス末尾で判定する
+const NETWORK_FIRST_PATTERNS = [
+    /\/index\.html$/,
+    /\/launcher\.js$/,
+    /\/tools-manifest\.json$/
+];
+
 function shouldBypassCache(url) {
-    return NEVER_CACHE_PATTERNS.some(pattern => pattern.test(url));
+    return NEVER_CACHE_PATTERNS.some(p => p.test(url));
 }
 
-// ---------- install: 殻となるファイルを事前キャッシュ ----------
+function shouldNetworkFirst(url, req) {
+    // ページナビゲーション（アドレスバー入力・リロード等）は常に network-first
+    if (req.mode === 'navigate') return true;
+    return NETWORK_FIRST_PATTERNS.some(p => p.test(url));
+}
+
+// ---------- install ----------
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -43,70 +65,73 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// ---------- activate: 古いバージョンのキャッシュを削除 ----------
+// ---------- activate ----------
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((keys) =>
-            Promise.all(
+        caches.keys()
+            .then((keys) => Promise.all(
                 keys
-                    .filter((key) => key.startsWith('dqx-tools-') && key !== CACHE_NAME)
-                    .map((key) => caches.delete(key))
-            )
-        ).then(() => self.clients.claim())
+                    .filter((k) => k.startsWith('dqx-tools-') && k !== CACHE_NAME)
+                    .map((k) => caches.delete(k))
+            ))
+            .then(() => self.clients.claim())
     );
 });
 
-// ---------- fetch: リクエスト振り分け ----------
+// ---------- fetch ----------
 self.addEventListener('fetch', (event) => {
     const req = event.request;
-
-    // GET以外（POSTなど）はそのままネットワークへ
     if (req.method !== 'GET') return;
 
     const url = req.url;
 
-    // 認証付き・テストツール関連は完全にバイパス（キャッシュしない・読まない）
-    if (shouldBypassCache(url)) {
-        return; // ブラウザのデフォルト挙動（素通し）に任せる
-    }
+    // 認証付き・テストツールは完全素通し
+    if (shouldBypassCache(url)) return;
 
-    // tools-manifest.json はネットワーク優先（バージョン・新規ツール検知の要）
-    // 失敗時のみキャッシュにフォールバックし、本体機能は止めない
-    if (url.includes('tools-manifest.json')) {
+    // ===== network-first =====
+    // index.html / launcher.js / tools-manifest.json
+    // → 常にサーバーへ。失敗（オフライン）時のみキャッシュから返す
+    if (shouldNetworkFirst(url, req)) {
         event.respondWith(
             fetch(req, { cache: 'no-store' })
                 .then((res) => {
-                    const resClone = res.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+                    if (res && res.status === 200) {
+                        const clone = res.clone();
+                        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                    }
                     return res;
                 })
-                .catch(() => caches.match(req))
+                .catch(() =>
+                    caches.match(req)
+                        .then((cached) => cached || caches.match('./index.html'))
+                )
         );
         return;
     }
 
-    // それ以外の静的ファイルは stale-while-revalidate
-    // （即座にキャッシュを返しつつ、裏でネットワーク取得して次回分を更新）
+    // ===== cache-first, stale-while-revalidate =====
+    // tools/*.js, icons/, launcher.css など
+    // → キャッシュを即座に返しつつ、裏でネットワーク取得して次回用に更新
+    // index.html/launcher.jsのバージョン不一致で再読み込みが走ると、
+    // ここも一緒に最新キャッシュへ置き換わる
     event.respondWith(
         caches.match(req).then((cached) => {
             const networkFetch = fetch(req)
                 .then((res) => {
                     if (res && res.status === 200) {
-                        const resClone = res.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+                        const clone = res.clone();
+                        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
                     }
                     return res;
                 })
-                .catch(() => cached); // オフライン時はキャッシュへフォールバック
+                .catch(() => cached);
 
             return cached || networkFetch;
         })
     );
 });
 
-// ---------- メッセージ: ページ側からの強制更新指示を受け付け ----------
+// ---------- message ----------
 self.addEventListener('message', (event) => {
-    if (event.data === 'skipWaiting') {
-        self.skipWaiting();
-    }
+    if (event.data === 'skipWaiting') self.skipWaiting();
 });
