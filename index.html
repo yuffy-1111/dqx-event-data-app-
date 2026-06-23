@@ -167,7 +167,9 @@
                 // サイドバーの表示状態を保持するため許可
                 'dqx_sidebar_visible',
                 // 新規ツール追加検知のため許可
-                'dqx_known_tool_ids'
+                'dqx_known_tool_ids',
+                // リモート manifest のバージョンを保持
+                'dqx_manifest_version'
             ];
 
             // ========== localStorageのクリーンアップ ==========
@@ -221,6 +223,32 @@
             }, { passive: false });
         });
         
+        async function clearDqxCachesAndReload() {
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames
+                            .filter((name) => name.startsWith('dqx-tools-'))
+                            .map((name) => caches.delete(name))
+                    );
+                } catch (e) {
+                    console.warn('[Cache Cleanup] failed to delete caches', e);
+                }
+            }
+            if ('serviceWorker' in navigator) {
+                try {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg) {
+                        await reg.update();
+                    }
+                } catch (e) {
+                    console.warn('[SW] update failed', e);
+                }
+            }
+            location.reload();
+        }
+
         function checkVersionAndReload() {
             const reloadCount = parseInt(sessionStorage.getItem(window.RELOAD_KEY)) || 0;
 
@@ -229,7 +257,7 @@
                     if (reloadCount < window.MAX_RELOAD) {
                         sessionStorage.setItem(window.RELOAD_KEY, reloadCount + 1);
                         alert(`バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`);
-                        location.reload(true);
+                        clearDqxCachesAndReload();
                     } else {
                         sessionStorage.removeItem(window.RELOAD_KEY);
                         alert(`バージョンが一致しません。旧バージョンのツールを読み込みます。\n少し時間をおいて再読み込みしてください。`);
@@ -334,7 +362,17 @@
                 const nb = bNums[i] || 0;
                 if (na !== nb) return na > nb ? 1 : -1;
             }
-            return a > b ? 1 : -1;
+            return 0;
+        }
+
+        function getStoredManifestVersion() {
+            return localStorage.getItem('dqx_manifest_version');
+        }
+
+        function setStoredManifestVersion(version) {
+            if (version) {
+                localStorage.setItem('dqx_manifest_version', version);
+            }
         }
 
         // バージョン確認を実行する共通関数（起動時・ツール遷移時に呼ぶ）
@@ -353,10 +391,13 @@
                 .then(data => {
                     window.DQX_LAST_MANIFEST_CHECK = new Date();
                     window.DQX_LAST_MANIFEST_OK = true;
-                    const localVer = window.LAUNCHER_VERSION || window.HTML_VERSION;
                     const remoteVer = data && data.launcherVersion;
-                    const cmp = (remoteVer && localVer) ? compareVersionStrings(remoteVer, localVer) : 0;
+                    const storedManifestVer = getStoredManifestVersion();
+                    const cmp = (remoteVer && storedManifestVer)
+                        ? compareVersionStrings(remoteVer, storedManifestVer)
+                        : 0;
                     window.DQX_NET_STATE = cmp > 0 ? 'update' : 'latest';
+                    setStoredManifestVersion(remoteVer);
                     window.dqxUpdateNetIndicator();
                     return data;
                 })
@@ -444,10 +485,20 @@
         ];
         
         // ランチャー到着時にバージョンチェックを実行
-        window.addEventListener('launcher-ready', checkVersionAndReload);
+        window.addEventListener('launcher-ready', function() {
+            checkVersionAndReload();
+            if (typeof window.dqxCheckVersion === 'function') {
+                window.dqxCheckVersion();
+            }
+        });
         // 既にランチャーが読み込まれている場合は即時チェック
         window.addEventListener('load', function() {
-            if (typeof window.LAUNCHER_VERSION !== 'undefined') checkVersionAndReload();
+            if (typeof window.LAUNCHER_VERSION !== 'undefined') {
+                checkVersionAndReload();
+                if (typeof window.dqxCheckVersion === 'function') {
+                    window.dqxCheckVersion();
+                }
+            }
         });
 
         // ========== 更新検知の主軸 ==========
