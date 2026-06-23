@@ -65,11 +65,11 @@
                             <li>「インストール」をクリック</li>
                         </ol>
                         <h3>Firefox（PC）</h3>
-                        <p class="install-note-inline">Firefox PCはブラウザのリンクとしてしか保持できないため、<strong>ローカルファイルとしてダウンロード</strong>して使う方法があります。</p>
+                        <p class="install-note-inline">Firefoxやその他の一部ブラウザでは自動インストール機能が使えないため、ブラウザのメニューから「ホーム画面に追加」または「アプリとしてインストール」を選択してください。</p>
                         <ol>
-                            <li>下のボタンからZIPをダウンロードして展開する</li>
-                            <li>展開したフォルダ内の <code>index.html</code> をブラウザで開く</li>
-                            <li>ブックマークに追加しておくと次回から素早く開けます</li>
+                            <li>右上のメニューを開く</li>
+                            <li>「ホーム画面に追加」または「アプリをインストール」を選択</li>
+                            <li>表示された名前のまま追加してください</li>
                         </ol>
                         <div id="install-pc-download-area"></div>
                         <p class="install-note">
@@ -187,14 +187,13 @@
 
             renderActionButtons();
 
-            // PC Firefoxのローカルダウンロードリンク
             const dlArea = document.getElementById('install-pc-download-area');
             if (dlArea) {
                 dlArea.innerHTML = `
-                    <a href="https://github.com/yuffy-1111/dqx-event-data-app-/archive/refs/heads/main.zip"
-                       target="_blank" rel="noopener" class="install-action-btn" style="display:inline-block;text-decoration:none;margin-top:4px;">
-                        📥 ソースをZIPでダウンロード（GitHub）
-                    </a>
+                    <div class="install-pc-download-links">
+                        <p class="install-note-inline">現在のブラウザでこのPWAをインストールできます。上部の「インストール」ボタンが表示されたら、それをクリックしてください。</p>
+                        <p class="install-note-inline">表示されない場合は、ブラウザメニューから「ホーム画面に追加」または「アプリをインストール」を選んでください。</p>
+                    </div>
                 `;
             }
         },
