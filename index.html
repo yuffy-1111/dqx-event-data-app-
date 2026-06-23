@@ -349,7 +349,9 @@
         };
 
         function compareVersionStrings(a, b) {
+            // 厳密な同一性チェック（通常はここで判定される）
             if (a === b) return 0;
+            // バージョン文字列から数値部分のみ抽出して比較
             const parseNums = (value) => (value || '')
                 .split(/[^0-9]+/)
                 .filter(Boolean)
@@ -362,7 +364,8 @@
                 const nb = bNums[i] || 0;
                 if (na !== nb) return na > nb ? 1 : -1;
             }
-            return a > b ? 1 : -1;
+            // 数値部分が同じ場合は文字列長で判定（短い方が先）
+            return a.length - b.length;
         }
 
         function getStoredManifestVersion() {
@@ -373,6 +376,13 @@
             if (version) {
                 localStorage.setItem('dqx_manifest_version', version);
             }
+        }
+
+        // ========== バージョンリセット処理 ==========
+        // 古いバージョン形式がキャッシュされている場合、初期化する
+        // これにより update ループを防止
+        function resetOldVersionCache() {
+            localStorage.removeItem('dqx_manifest_version');
         }
 
         // バージョン確認を実行する共通関数（起動時・ツール遷移時に呼ぶ）
@@ -444,6 +454,7 @@
         // ========== 起動時オンラインチェック ==========
         // dqxCheckVersion() を呼び出してバージョン確認＋ツール一覧取得を行う。
         // 結果は DQX_REMOTE_MANIFEST に格納し、registerAllTools で使用する。
+        resetOldVersionCache();
         window.DQX_REMOTE_MANIFEST = null;
         window.DQX_MANIFEST_FETCH_PROMISE = window.dqxCheckVersion()
             .then(data => {

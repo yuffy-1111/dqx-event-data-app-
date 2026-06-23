@@ -37,8 +37,8 @@ const NEVER_CACHE_PATTERNS = [
 ];
 
 // network-first で扱うファイルのパターン
-// launcher.js は tools/ 配下のツール本体（tools/xxx.js）と区別するため
-// パス末尾で判定する
+// launcher.js は index.html と一緒にバージョン管理されるため
+// 常に最新をサーバーから取得する必要がある
 const NETWORK_FIRST_PATTERNS = [
     /\/index\.html$/,
     /\/launcher\.js$/,
@@ -59,6 +59,18 @@ function shouldNetworkFirst(url, req) {
         // 失敗した場合はそのまま URL 文字列を使う
     }
     return NETWORK_FIRST_PATTERNS.some(p => p.test(path));
+}
+
+// クエリパラメータを除去したURLでキャッシュキーを正規化する
+// ?v=1.0.1β+ のようなキャッシュバスターが付いていても同じキーで保存・参照する
+function normalizeUrl(url) {
+    try {
+        const u = new URL(url);
+        u.search = '';
+        return u.toString();
+    } catch (e) {
+        return url.split('?')[0];
+    }
 }
 
 // ---------- install ----------
@@ -90,6 +102,7 @@ self.addEventListener('fetch', (event) => {
     if (req.method !== 'GET') return;
 
     const url = req.url;
+    const normalizedUrl = normalizeUrl(url);
 
     // 認証付き・テストツールは完全素通し
     if (shouldBypassCache(url)) return;
@@ -97,18 +110,19 @@ self.addEventListener('fetch', (event) => {
     // ===== network-first =====
     // index.html / launcher.js / tools-manifest.json
     // → 常にサーバーへ。失敗（オフライン）時のみキャッシュから返す
-    if (shouldNetworkFirst(url, req)) {
+    if (shouldNetworkFirst(normalizedUrl, req)) {
         event.respondWith(
             fetch(req, { cache: 'no-store' })
                 .then((res) => {
                     if (res && res.status === 200) {
                         const clone = res.clone();
-                        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                        const normReq = new Request(normalizeUrl(req.url));
+                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
                     }
                     return res;
                 })
                 .catch(() =>
-                    caches.match(req)
+                    caches.match(normalizeUrl(req.url))
                         .then((cached) => cached || caches.match('./index.html'))
                 )
         );
@@ -120,13 +134,14 @@ self.addEventListener('fetch', (event) => {
     // → キャッシュを即座に返しつつ、裏でネットワーク取得して次回用に更新
     // index.html/launcher.jsのバージョン不一致で再読み込みが走ると、
     // ここも一緒に最新キャッシュへ置き換わる
+    const normReq = new Request(normalizeUrl(req.url));
     event.respondWith(
-        caches.match(req).then((cached) => {
+        caches.match(normReq).then((cached) => {
             const networkFetch = fetch(req)
                 .then((res) => {
                     if (res && res.status === 200) {
                         const clone = res.clone();
-                        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
                     }
                     return res;
                 })
