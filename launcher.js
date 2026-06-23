@@ -103,9 +103,7 @@ const DQXTools = {
             'dqx_material_prices',
             'dqx_sidebar_visible',
             // 新規ツール追加検知のため許可
-            'dqx_known_tool_ids',
-            // リモート manifest のバージョンを保持
-            'dqx_manifest_version'
+            'dqx_known_tool_ids'
         ];
 
         for (let i = localStorage.length - 1; i >= 0; i--) {
