@@ -1,7 +1,7 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
 // APP_VERSION は形式に依存しない任意の文字列として扱います。
-const APP_VERSION = '1.0.1β+';
+const APP_VERSION = '1.0.2β+';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -637,9 +637,6 @@ const DQXTools = {
         const tool = this.tools[toolId];
         if (!tool) return;
         if (this.currentTool === toolId) return;
-
-        // ツール遷移時にバージョン確認（結果はインジケーターに反映）
-        if (window.dqxCheckVersion) window.dqxCheckVersion();
 
         if (tool.hideInMenu && tool.testToolConfig) {
             this.destroyCurrentTool();
