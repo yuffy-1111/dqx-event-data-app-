@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.0.5β+';
+const CACHE_VERSION = '1.0.6β+';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -102,6 +102,7 @@ self.addEventListener('fetch', (event) => {
     if (req.method !== 'GET') return;
 
     const url = req.url;
+    const normalizedUrl = normalizeUrl(url);
 
     // 認証付き・テストツールは完全素通し
     if (shouldBypassCache(url)) return;
@@ -109,7 +110,7 @@ self.addEventListener('fetch', (event) => {
     // ===== network-first =====
     // index.html / launcher.js / tools-manifest.json
     // → 常にサーバーへ。失敗（オフライン）時のみキャッシュから返す
-    if (shouldNetworkFirst(url, req)) {
+    if (shouldNetworkFirst(normalizedUrl, req)) {
         event.respondWith(
             fetch(req, { cache: 'no-store' })
                 .then((res) => {
