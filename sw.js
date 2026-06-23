@@ -52,7 +52,13 @@ function shouldBypassCache(url) {
 function shouldNetworkFirst(url, req) {
     // ページナビゲーション（アドレスバー入力・リロード等）は常に network-first
     if (req.mode === 'navigate') return true;
-    return NETWORK_FIRST_PATTERNS.some(p => p.test(url));
+    let path = url;
+    try {
+        path = new URL(url, self.location.origin).pathname;
+    } catch (e) {
+        // 失敗した場合はそのまま URL 文字列を使う
+    }
+    return NETWORK_FIRST_PATTERNS.some(p => p.test(path));
 }
 
 // ---------- install ----------

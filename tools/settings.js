@@ -22,6 +22,11 @@
                     </div>
 
                     <div class="settings-card">
+                        <h3>📦 ストレージ状況</h3>
+                        <div id="storageInfo"></div>
+                    </div>
+
+                    <div class="settings-card">
                         <h3>📡 オフライン対応</h3>
                         <div id="pwaStatusInfo"></div>
                         <div class="button-group" style="margin-top: 12px;">
@@ -30,19 +35,6 @@
                         <p class="settings-note">
                             ※ このツールはオフラインでも起動できます。起動時に自動でオンラインの最新情報を確認しますが、確認できない場合は保存済みのデータで起動します。
                         </p>
-                    </div>
-
-                    <div class="settings-card">
-                        <h3>📲 アプリとして追加</h3>
-                        <div id="pwaInstallInfo"></div>
-                        <div class="button-group" id="pwaInstallButtonWrap" style="margin-top: 12px; display:none;">
-                            <button id="pwaInstallBtn" class="btn-info">ホーム画面に追加</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-card">
-                        <h3>📦 ストレージ状況</h3>
-                        <div id="storageInfo"></div>
                     </div>
 
                     <div class="feedback-card">
@@ -60,7 +52,6 @@
                     <div class="settings-card">
                         <h3>ℹ️ このツールについて</h3>
                         <p>DQXツールセット - 製作:yuffy_rre</p>
-                        <p>バージョン: ${window.LAUNCHER_VERSION || '2.3.4'}</p>
                     </div>
                 </div>
             `;
@@ -219,14 +210,16 @@
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
                     if (key && key.startsWith('dqx_')) {
-                        total += localStorage.getItem(key).length;
+                        const value = localStorage.getItem(key) || '';
+                        total += value.length;
                         count++;
                     }
                 }
+
                 const infoDiv = document.getElementById('storageInfo');
                 if (infoDiv) {
                     infoDiv.innerHTML = `
-                        <p>📊 内部データ: ${count} 項目</p>
+                        <p>📁 保存ファイル: ${count} 件</p>
                         <p>💾 概算サイズ: ${Math.round(total / 1024)} KB</p>
                     `;
                 }
@@ -240,31 +233,42 @@
                 const swSupported = 'serviceWorker' in navigator;
                 const online = navigator.onLine;
                 let swActive = false;
-                let cachedFileCount = null;
+                let cacheCount = 0;
+                let cacheSize = 0;
 
                 if (swSupported) {
                     try {
                         const reg = await navigator.serviceWorker.getRegistration();
                         swActive = !!(reg && reg.active);
                     } catch (e) { /* noop */ }
+                }
 
+                if ('caches' in window) {
                     try {
-                        if ('caches' in window) {
-                            const keys = await caches.keys();
-                            const dqxKey = keys.find(k => k.startsWith('dqx-tools-'));
-                            if (dqxKey) {
-                                const cache = await caches.open(dqxKey);
-                                const reqs = await cache.keys();
-                                cachedFileCount = reqs.length;
+                        const cacheNames = await caches.keys();
+                        const dqxCaches = cacheNames.filter(k => k.startsWith('dqx-tools-'));
+                        for (const cacheName of dqxCaches) {
+                            const cache = await caches.open(cacheName);
+                            const requests = await cache.keys();
+                            cacheCount += requests.length;
+                            for (const req of requests) {
+                                const res = await cache.match(req);
+                                if (res) {
+                                    const blob = await res.blob();
+                                    cacheSize += blob.size;
+                                }
                             }
                         }
-                    } catch (e) { /* noop */ }
+                    } catch (e) {
+                        console.warn('キャッシュ情報の取得に失敗しました', e);
+                    }
                 }
 
                 statusDiv.innerHTML = `
                     <p>${online ? '🟢' : '🔴'} 現在の接続状態: ${online ? 'オンライン' : 'オフライン'}</p>
                     <p>${swActive ? '✅' : '⚠️'} オフライン起動: ${swActive ? '利用可能' : (swSupported ? '準備中／未対応ブラウザの可能性' : '非対応ブラウザ')}</p>
-                    ${cachedFileCount !== null ? `<p>📁 保存済みファイル: ${cachedFileCount} 件</p>` : ''}
+                    <p>📁 キャッシュファイル: ${cacheCount} 件</p>
+                    <p>💾 キャッシュサイズ: ${Math.round(cacheSize / 1024)} KB</p>
                 `;
             }
 
@@ -317,10 +321,7 @@
                 // Firefox（PC・Android）：手動手順を案内
                 if (env.isFirefox) {
                     infoDiv.innerHTML = `
-                        <p>Firefoxでは以下の手順でホーム画面・アプリ一覧に追加できます。</p>
-                        <p>① アドレスバー右側のメニュー（または ⋮ ）を開く</p>
-                        <p>② 「ホーム画面に追加」または「インストール」を選択</p>
-                        <p>③ 表示された名前のまま追加してください</p>
+                        <p>FirefoxではPWAインストールをサポートしていません。ブラウザのブックマークをご利用ください。</p>
                     `;
                     return;
                 }
@@ -366,9 +367,45 @@
                         alert('オフラインのため更新を確認できません。オンライン環境で再度お試しください。');
                         return;
                     }
+
+                    let didReload = false;
                     forceUpdateBtn.disabled = true;
                     forceUpdateBtn.textContent = '確認中…';
                     try {
+                        const manifest = (typeof window.dqxCheckVersion === 'function')
+                            ? await window.dqxCheckVersion()
+                            : null;
+                        const localVer = window.LAUNCHER_VERSION || window.HTML_VERSION;
+                        const remoteVer = manifest && manifest.launcherVersion;
+
+                        function compareVersionStrings(a, b) {
+                            if (a === b) return 0;
+                            const parseNums = (value) => (value || '')
+                                .split(/[^0-9]+/)
+                                .filter(Boolean)
+                                .map((n) => parseInt(n, 10));
+                            const aNums = parseNums(a);
+                            const bNums = parseNums(b);
+                            const len = Math.max(aNums.length, bNums.length);
+                            for (let i = 0; i < len; i++) {
+                                const na = aNums[i] || 0;
+                                const nb = bNums[i] || 0;
+                                if (na !== nb) return na > nb ? 1 : -1;
+                            }
+                            return a > b ? 1 : -1;
+                        }
+
+                        if (!remoteVer) {
+                            alert('最新情報を取得できませんでした。時間をおいて再度お試しください。');
+                            return;
+                        }
+
+                        const cmp = compareVersionStrings(remoteVer, localVer);
+                        if (cmp <= 0) {
+                            alert('現在の読み込みキャッシュは最新です。');
+                            return;
+                        }
+
                         if ('caches' in window) {
                             const keys = await caches.keys();
                             await Promise.all(
@@ -379,13 +416,17 @@
                             const reg = await navigator.serviceWorker.getRegistration();
                             if (reg) await reg.update();
                         }
-                        alert('✅ 最新の状態に更新しました。ページを再読み込みします。');
+                        alert('✅ 更新を適用しました。ページを再読み込みします。');
+                        didReload = true;
                         location.reload(true);
                     } catch (e) {
                         console.error(e);
-                        forceUpdateBtn.disabled = false;
-                        forceUpdateBtn.textContent = '最新版を確認して更新';
                         alert('更新中にエラーが発生しました。時間をおいて再度お試しください。');
+                    } finally {
+                        if (!didReload) {
+                            forceUpdateBtn.disabled = false;
+                            forceUpdateBtn.textContent = '最新版を確認して更新';
+                        }
                     }
                 };
             }

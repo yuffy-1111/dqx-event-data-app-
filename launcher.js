@@ -1,6 +1,7 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '3.2.5β';
+// APP_VERSION は形式に依存しない任意の文字列として扱います。
+const APP_VERSION = '1.0.0β+';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -252,11 +253,13 @@ const DQXTools = {
                     ${cardButtons}
                 </div>
                 <div class="home-footer">
-                    <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
+                    <div class="footer-row">
+                        <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
+                        <button id="footer-reload-btn" class="footer-reload-btn" type="button" title="設定の最新版を確認して更新">↻</button>
+                    </div>
                     <div class="footer-copyright">© 2026 yuffy_rre</div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
         const toggleBtn = document.getElementById('global-dark-toggle');
         if (toggleBtn) {
@@ -296,6 +299,30 @@ const DQXTools = {
                     if (window.DQX_MANIFEST_FETCH_PROMISE) {
                         window.DQX_MANIFEST_FETCH_PROMISE.then(tryLoad);
                     }
+                }
+            };
+        }
+
+        const footerReloadBtn = document.getElementById('footer-reload-btn');
+        if (footerReloadBtn) {
+            footerReloadBtn.onclick = async (e) => {
+                e.preventDefault();
+                if (!navigator.onLine) {
+                    window.dqxShowToast('オフラインのため更新を確認できません。オンライン環境で再度お試しください。');
+                    return;
+                }
+                if (typeof window.dqxCheckVersion !== 'function') {
+                    window.location.reload(true);
+                    return;
+                }
+                await window.dqxCheckVersion();
+                if (window.DQX_NET_STATE === 'update') {
+                    window.dqxShowToast('更新があります。ページを再読み込みします。');
+                    window.location.reload(true);
+                } else if (window.DQX_NET_STATE === 'latest') {
+                    window.dqxShowToast('現在の読み込みキャッシュは最新です。');
+                } else {
+                    window.dqxShowToast('最新状態を確認できませんでした。');
                 }
             };
         }
@@ -348,15 +375,15 @@ const DQXTools = {
 
             const modal = document.createElement('div');
             modal.id = 'manage-modal';
-            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:30000;';
+            modal.className = 'manage-modal';
 
             const dialog = document.createElement('div');
-            dialog.style.cssText = 'background:#fff;color:#000;padding:20px;border-radius:8px;width:90%;max-width:720px;max-height:80vh;overflow:auto;';
+            dialog.className = 'manage-dialog';
             dialog.innerHTML = `
                 <h3>カード編集</h3>
                 <p>ホームに表示するツールの表示/非表示を切り替えます。変更は即時保存されます。</p>
-                <div id="manage-list" style="margin-bottom:12px;"></div>
-                <div style="display:flex;gap:8px;justify-content:flex-end;"><button id="manage-save">閉じる</button></div>
+                <div id="manage-list" class="manage-list"></div>
+                <div class="manage-actions"><button id="manage-save" class="manage-save-btn" type="button">閉じる</button></div>
             `;
 
             modal.appendChild(dialog);
@@ -376,14 +403,14 @@ const DQXTools = {
                 listContainer.innerHTML = '';
                 allIds.forEach(id => {
                     const row = document.createElement('div');
-                    row.style.cssText = 'display:flex;gap:8px;align-items:center;padding:6px;border-bottom:1px solid #eee;';
+                    row.className = 'manage-row';
                     const chk = document.createElement('input');
                     chk.type = 'checkbox';
                     // デフォルトはチェックあり（表示）
                     chk.checked = visible ? visible.includes(id) : true;
                     const label = document.createElement('div');
+                    label.className = 'manage-label';
                     label.textContent = id + (this.tools[id] ? ` — ${this.tools[id].name}` : '');
-                    label.style.flex = '1';
                     chk.onchange = () => {
                         if (!visible) visible = allIds.slice();
                         if (chk.checked) {
