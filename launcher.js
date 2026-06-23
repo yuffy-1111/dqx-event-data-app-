@@ -1,7 +1,7 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
 // APP_VERSION は形式に依存しない任意の文字列として扱います。
-const APP_VERSION = '1.0.7β+';
+const APP_VERSION = '1.0.8β+';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -101,6 +101,7 @@ const DQXTools = {
             'dqx_lap_notify',
             'dqx_shopping_cart',
             'dqx_material_prices',
+            // サイドバーの表示状態を保持するため許可
             'dqx_sidebar_visible',
             // 新規ツール追加検知のため許可
             'dqx_known_tool_ids',
