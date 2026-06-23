@@ -103,7 +103,9 @@ const DQXTools = {
             'dqx_material_prices',
             'dqx_sidebar_visible',
             // 新規ツール追加検知のため許可
-            'dqx_known_tool_ids'
+            'dqx_known_tool_ids',
+            // リモート manifest のバージョンを保持
+            'dqx_manifest_version'
         ];
 
         for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -638,6 +640,9 @@ const DQXTools = {
         if (!tool) return;
         if (this.currentTool === toolId) return;
 
+        // ツール遷移時にバージョン確認（結果はインジケーターに反映）
+        if (window.dqxCheckVersion) window.dqxCheckVersion();
+
         if (tool.hideInMenu && tool.testToolConfig) {
             this.destroyCurrentTool();
             const oldContainer = document.getElementById('dqx-tool-container');
@@ -688,6 +693,9 @@ const DQXTools = {
                 fn('#dqx-tool-container');
                 this.currentTool = toolId;
                 this.renderToolMenu();
+                if (typeof window.dqxCheckVersion === 'function') {
+                    window.dqxCheckVersion();
+                }
             } else {
                 toolContainer.innerHTML = '<div style="color: red; text-align: center; padding: 40px;">エラー: ツールの読み込みに失敗しました</div>';
                 this.goHome();
