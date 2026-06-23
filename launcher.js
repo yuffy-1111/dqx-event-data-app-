@@ -101,9 +101,12 @@ const DQXTools = {
             'dqx_lap_notify',
             'dqx_shopping_cart',
             'dqx_material_prices',
+            // サイドバーの表示状態を保持するため許可
             'dqx_sidebar_visible',
             // 新規ツール追加検知のため許可
-            'dqx_known_tool_ids'
+            'dqx_known_tool_ids',
+            // リモート manifest のバージョンを保持
+            'dqx_manifest_version'
         ];
 
         for (let i = localStorage.length - 1; i >= 0; i--) {
