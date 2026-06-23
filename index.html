@@ -140,7 +140,7 @@
     </style>
     <script>
         // バージョン文字列は任意形式で構いません。手動更新前提のため、等価比較のみを行います。
-        window.HTML_VERSION = '1.0.1β+';
+        window.HTML_VERSION = '1.0.2β+';
 
         // リロード回数の管理（無限ループ防止）
         window.RELOAD_KEY = 'dqx_reload_count';
@@ -362,7 +362,7 @@
                 const nb = bNums[i] || 0;
                 if (na !== nb) return na > nb ? 1 : -1;
             }
-            return 0;
+            return a > b ? 1 : -1;
         }
 
         function getStoredManifestVersion() {
@@ -382,11 +382,15 @@
                 window.dqxUpdateNetIndicator();
                 return Promise.resolve(null);
             }
+            // すでに update 確定済みなら再チェック不要（インジケーターを保持）
+            if (window.DQX_NET_STATE === 'update') {
+                return Promise.resolve(null);
+            }
             window.DQX_NET_STATE = 'checking';
             window.dqxUpdateNetIndicator();
 
             const manifestUrl = './tools-manifest.json?v=' + Date.now();
-        return fetch(manifestUrl, { cache: 'no-store' })
+            return fetch(manifestUrl, { cache: 'no-store' })
                 .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
                 .then(data => {
                     window.DQX_LAST_MANIFEST_CHECK = new Date();
@@ -397,7 +401,11 @@
                         ? compareVersionStrings(remoteVer, storedManifestVer)
                         : 0;
                     window.DQX_NET_STATE = cmp > 0 ? 'update' : 'latest';
-                    setStoredManifestVersion(remoteVer);
+                    // update の場合は localStorage を上書きしない
+                    // → 次回チェック時も update と判定され続けるようにする
+                    if (cmp <= 0) {
+                        setStoredManifestVersion(remoteVer);
+                    }
                     window.dqxUpdateNetIndicator();
                     return data;
                 })
