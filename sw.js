@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.0.4β+';
+const CACHE_VERSION = '1.0.5β+';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -23,9 +23,6 @@ const PRECACHE_URLS = [
     './launcher.css',
     './manifest.webmanifest',
     './tools-manifest.json',
-    './icons/icon-192.png',
-    './icons/icon-512.png',
-    './icons/icon-maskable-512.png',
     './tools/checker.js',
     './tools/expmercenary.js',
     './tools/version_selector.js',
@@ -62,6 +59,18 @@ function shouldNetworkFirst(url, req) {
         // 失敗した場合はそのまま URL 文字列を使う
     }
     return NETWORK_FIRST_PATTERNS.some(p => p.test(path));
+}
+
+// クエリパラメータを除去したURLでキャッシュキーを正規化する
+// ?v=1.0.1β+ のようなキャッシュバスターが付いていても同じキーで保存・参照する
+function normalizeUrl(url) {
+    try {
+        const u = new URL(url);
+        u.search = '';
+        return u.toString();
+    } catch (e) {
+        return url.split('?')[0];
+    }
 }
 
 // ---------- install ----------
@@ -106,12 +115,13 @@ self.addEventListener('fetch', (event) => {
                 .then((res) => {
                     if (res && res.status === 200) {
                         const clone = res.clone();
-                        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                        const normReq = new Request(normalizeUrl(req.url));
+                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
                     }
                     return res;
                 })
                 .catch(() =>
-                    caches.match(req)
+                    caches.match(normalizeUrl(req.url))
                         .then((cached) => cached || caches.match('./index.html'))
                 )
         );
@@ -123,13 +133,14 @@ self.addEventListener('fetch', (event) => {
     // → キャッシュを即座に返しつつ、裏でネットワーク取得して次回用に更新
     // index.html/launcher.jsのバージョン不一致で再読み込みが走ると、
     // ここも一緒に最新キャッシュへ置き換わる
+    const normReq = new Request(normalizeUrl(req.url));
     event.respondWith(
-        caches.match(req).then((cached) => {
+        caches.match(normReq).then((cached) => {
             const networkFetch = fetch(req)
                 .then((res) => {
                     if (res && res.status === 200) {
                         const clone = res.clone();
-                        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
                     }
                     return res;
                 })
