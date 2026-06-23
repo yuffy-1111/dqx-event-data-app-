@@ -254,8 +254,13 @@
                             for (const req of requests) {
                                 const res = await cache.match(req);
                                 if (res) {
-                                    const blob = await res.blob();
-                                    cacheSize += blob.size;
+                                    const cl = res.headers.get('Content-Length');
+                                    if (cl) {
+                                        cacheSize += parseInt(cl, 10);
+                                    } else {
+                                        const blob = await res.clone().blob();
+                                        cacheSize += blob.size;
+                                    }
                                 }
                             }
                         }
@@ -375,8 +380,8 @@
                         const manifest = (typeof window.dqxCheckVersion === 'function')
                             ? await window.dqxCheckVersion()
                             : null;
-                        const localVer = window.LAUNCHER_VERSION || window.HTML_VERSION;
                         const remoteVer = manifest && manifest.launcherVersion;
+                        const storedManifestVer = localStorage.getItem('dqx_manifest_version');
 
                         function compareVersionStrings(a, b) {
                             if (a === b) return 0;
@@ -400,7 +405,9 @@
                             return;
                         }
 
-                        const cmp = compareVersionStrings(remoteVer, localVer);
+                        const cmp = storedManifestVer
+                            ? compareVersionStrings(remoteVer, storedManifestVer)
+                            : 1;
                         if (cmp <= 0) {
                             alert('現在の読み込みキャッシュは最新です。');
                             return;
