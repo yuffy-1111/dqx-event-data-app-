@@ -1,7 +1,7 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
 // APP_VERSION は形式に依存しない任意の文字列として扱います。
-const APP_VERSION = '1.0.2β+';
+const APP_VERSION = '1.0.3β+';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
