@@ -187,6 +187,16 @@
                 body.dark-mode .btn-info {
                     background: #0d8ba0;
                 }
+                /* ===== バージョン情報テーブルのダークモード対応 ===== */
+                body.dark-mode #versionInfo table td {
+                    color: #cbd5e1 !important;
+                }
+                body.dark-mode #versionInfo table td:first-child {
+                    color: #94a3b8 !important;
+                }
+                body.dark-mode #versionInfo .dqx-version-badge {
+                    color: #60a5fa !important;
+                }
                 body.dark-mode #storageInfo {
                     color: #cbd5e1;
                 }
@@ -490,7 +500,7 @@
                 };
             }
 
-            // ----- バージョン情報の表示 -----
+            // ----- バージョン情報の表示（ダークモード対応） -----
             function updateVersionInfo() {
                 const div = document.getElementById('versionInfo');
                 if (!div) return;
@@ -502,24 +512,25 @@
                     ? (launcherVer === htmlVer)
                     : null;
 
-                const matchBadge = match === null
+                // バッジの表示（ダークモード用クラスを付与）
+                const badgeHtml = match === null
                     ? ''
                     : match
-                        ? '<span style="color:var(--color-success,#2e7d32);font-size:.85em;">✅ 一致</span>'
-                        : '<span style="color:var(--color-error,#c62828);font-size:.85em;">⚠️ 不一致</span>';
+                        ? '<span class="dqx-version-badge" style="color:#2e7d32;font-size:.85em;">✅ 一致</span>'
+                        : '<span class="dqx-version-badge" style="color:#c62828;font-size:.85em;">⚠️ 不一致</span>';
 
                 div.innerHTML = `
                     <table style="width:100%;border-collapse:collapse;font-size:.9em;margin-top:6px;">
                         <tr>
-                            <td style="padding:3px 6px;color:var(--color-text-muted,#666);">ランチャー</td>
-                            <td style="padding:3px 6px;font-family:monospace;">${launcherVer} ${matchBadge}</td>
+                            <td style="padding:3px 6px;color:#666;">ランチャー</td>
+                            <td style="padding:3px 6px;font-family:monospace;">${launcherVer} ${badgeHtml}</td>
                         </tr>
                         <tr>
-                            <td style="padding:3px 6px;color:var(--color-text-muted,#666);">HTML</td>
+                            <td style="padding:3px 6px;color:#666;">HTML</td>
                             <td style="padding:3px 6px;font-family:monospace;">${htmlVer}</td>
                         </tr>
                         <tr>
-                            <td style="padding:3px 6px;color:var(--color-text-muted,#666);">マニフェスト</td>
+                            <td style="padding:3px 6px;color:#666;">マニフェスト</td>
                             <td style="padding:3px 6px;font-family:monospace;">${manifestVer}</td>
                         </tr>
                     </table>`;
