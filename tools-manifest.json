@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.4β+",
-  "updatedAt": "1.1.4β+",
+  "launcherVersion": "1.1.5β+",
+  "updatedAt": "1.1.5β+",
   "tools": [
     {
       "id": "Checker",
