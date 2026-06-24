@@ -1,0 +1,232 @@
+<div style="max-width: 400px; margin: 10px auto; padding: 12px; border: 2px solid #0066cc; border-radius: 8px; background: #fff; font-family: sans-serif; color: #333; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.2;">
+<div style="display: flex; gap: 4px; margin-bottom: 8px;"><select id="monsterSelect" style="flex: 2; padding: 6px; font-size: 14px; border: 1px solid #0066cc; border-radius: 4px; font-weight: bold; background: #f0f7ff;">
+<option value="returner" data-base="13118" data-bonus="0">リターナーモア</option>
+<option selected="selected" value="durahan" data-base="22802" data-bonus="4561">デュラハーン</option>
+<option value="hell" data-base="23990" data-bonus="4798">ヘルガーディアン</option>
+<option value="scare" data-base="22904" data-bonus="4581">スケアフレイル</option>
+</select><select id="passbook" style="flex: 1; padding: 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 4px;">
+<option value="0">通帳なし</option>
+<option value="5000000">通帳1(50万)</option>
+<option value="10000000">通帳2(100万)</option>
+</select></div>
+<div style="background: #fdfdfd; padding: 6px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 8px; font-size: 12px;">
+<div style="margin-bottom: 4px; display: flex; gap: 8px;"><label style="cursor: pointer;"><input name="energy" type="radio" value="none" />無</label> <label style="cursor: pointer;"><input checked="checked" name="energy" type="radio" value="genki" />元気</label> <label style="cursor: pointer;"><input name="energy" type="radio" value="bakushin" />爆伸</label></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px dashed #eee; padding-top: 4px;"><label style="cursor: pointer;"><input id="food" checked="checked" type="checkbox" />料理</label> <label style="cursor: pointer;"><input id="training" type="checkbox" />修練</label> <label style="cursor: pointer;"><input id="angel" type="checkbox" />エンゼル</label> <label style="cursor: pointer;"><input id="emperor" type="checkbox" />皇帝</label></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+<div>
+<div style="font-size: 10px; color: #666; margin-bottom: 2px;">討伐数</div>
+<select id="callNum" style="width: 100%; padding: 6px; font-size: 16px; font-weight: bold; border: 1px solid #ccc; border-radius: 4px; background: #fff;">
+<option value="1">A(1)</option>
+<option value="2">B(2)</option>
+<option value="3">C(3)</option>
+<option value="4">D(4)</option>
+<option value="5">E(5)</option>
+<option value="6">F(6)</option>
+<option value="7">G(7)</option>
+<option value="8">H(8)</option>
+<option value="9">I(9)</option>
+<option value="10">J(10)</option>
+<option selected="selected" value="11">K(11)</option>
+<option value="12">L(12)</option>
+</select></div>
+<div style="display: flex; gap: 4px;">
+<div id="setOptimalBtn" style="flex: 1.2; cursor: pointer; background: #e8f4fd; border: 1px solid #b3d9ff; border-radius: 4px; text-align: center; display: flex; flex-direction: column; justify-content: center;">
+<div style="font-size: 9px; color: #0066cc; pointer-events: none;">最適にする</div>
+<div id="optimalText" style="font-size: 13px; font-weight: bold; color: #0066cc; pointer-events: none;">--</div>
+</div>
+<button id="allResetBtn" style="flex: 1.3; font-size: 11px; background: #fff1f0; border: 1px solid #ffa39e; border-radius: 4px; color: #cf1322; cursor: pointer; font-weight: bold; white-space: nowrap; padding: 0 4px;">Allリセット</button></div>
+</div>
+<button id="calcBtn" style="width: 100%; padding: 12px; font-size: 18px; background: #0066cc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"> <span id="currentExp">0</span> Exp 加算 </button>
+<div style="background: #f9f9f9; padding: 6px 10px; border-radius: 6px; border: 1px solid #eee;">
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+<div id="timerDisplay" style="font-size: 22px; font-weight: bold; font-family: monospace; letter-spacing: -1px;">00:00.00</div>
+<div style="display: flex; gap: 4px;"><button id="timerStart" style="padding: 4px 6px; font-size: 11px; background: #27ae60; color: white; border: none; border-radius: 3px; cursor: pointer;">開始</button> <button id="timerStop" style="padding: 4px 6px; font-size: 11px; background: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer;">停止</button> <button id="timerReset" style="padding: 4px 6px; font-size: 11px; background: #95a5a5; color: white; border: none; border-radius: 3px; cursor: pointer;">リセット</button></div>
+</div>
+<div id="historyTotal" style="display: none; font-size: 11px; text-align: center; border-top: 1px solid #ddd; padding-top: 4px;">
+<div>合計: <strong><span id="historySum">0</span></strong> | 平均: <strong id="avgTime" style="color: #e67e22;">--:--.--</strong></div>
+<div id="forecastArea" style="display: none; color: #27ae60; font-weight: bold; margin-top: 2px; border-top: 1px dashed #eee; padding-top: 2px;">想定玉給: <span id="forecastExp">0</span></div>
+</div>
+</div>
+<div id="totalArea" style="display: none; margin-top: 6px; padding: 6px; background: #fffde7; border: 1px solid #fff59d; border-radius: 4px; text-align: center; font-size: 12px;">通帳: <strong id="totalExp" style="color: #d32f2f;">0</strong> / <span id="passLimitText">5,000,000</span> <button id="passbookResetBtn" style="margin-left: 6px; font-size: 10px; cursor: pointer;">リセット</button></div>
+<div id="resultHistory" style="margin-top: 8px; max-height: 220px; overflow-y: auto; border-top: 1px solid #eee; background: #fff;"></div>
+</div>
+<p>
+<script>
+(function() {
+  const labels = ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+  const el = id => document.getElementById(id);
+  let timerInterval = null, startTime = 0, pausedSec = 0, offsetPass = 0, battleCount = 0;
+
+  const fmtTime = (s) => {
+    if (isNaN(s) || s < 0 || s === Infinity) return "--:--.--";
+    const m = Math.floor(s / 60);
+    const ss = (s % 60).toFixed(2).padStart(5, '0');
+    return `${m.toString().padStart(2, '0')}:${ss}`;
+  };
+
+  const getExpBreakdown = (count) => {
+    const sel = el('monsterSelect').options[el('monsterSelect').selectedIndex];
+    const base = parseInt(sel.dataset.base) || 0;
+    const bonus = parseInt(sel.dataset.bonus) || 0;
+    const energy = document.querySelector('input[name="energy"]:checked')?.value || 'none';
+    const hasPass = parseInt(el('passbook').value) > 0;
+    const isHighLimit = (energy === 'bakushin' || el('training').checked);
+    const commonLimit = isHighLimit ? 1499999 : 599999;
+
+    let pC = base + bonus;
+    if (el('food').checked) pC += Math.round(base * 0.3);
+    if (energy === 'genki') pC += base;
+    if (energy === 'bakushin') pC += base * 2;
+    if (el('training').checked) pC += base;
+    if (el('emperor').checked) pC += base;
+    const pA = el('angel').checked ? (base * 2) : 0;
+    
+    if (hasPass) {
+      const cRes = Math.min(pC * count, commonLimit);
+      const aRes = Math.min(pA * count, 599999);
+      return { total: cRes + aRes, common: cRes, angel: aRes, pC, pA };
+    } else {
+      const finalTotal = Math.min((pC + pA) * count, commonLimit);
+      return { total: finalTotal, common: finalTotal, angel: 0, pC: pC + pA, pA: 0 };
+    }
+  };
+
+  const updateUI = () => {
+    const count = parseInt(el('callNum').value);
+    const exps = getExpBreakdown(count);
+    const btn = el('calcBtn');
+    if (!btn.disabled) btn.innerHTML = `<span id="currentExp">${exps.total.toLocaleString()}</span> Exp 加算`;
+    const passLimit = parseInt(el('passbook').value);
+    el('totalArea').style.display = passLimit > 0 ? 'block' : 'none';
+    el('passLimitText').textContent = passLimit.toLocaleString();
+    
+    const energy = document.querySelector('input[name="energy"]:checked')?.value || 'none';
+    const isHighLimit = (energy === 'bakushin' || el('training').checked);
+    const commonLimit = isHighLimit ? 1499999 : 599999;
+    const e1 = getExpBreakdown(1);
+    let opt = 1;
+    for (let i = 1; i <= 12; i++) {
+      if (passLimit > 0) {
+        if (e1.pC * i <= commonLimit && e1.pA * i <= 599999) opt = i; else break;
+      } else {
+        if ((e1.pC) * i <= commonLimit) opt = i; else break;
+      }
+    }
+    el('optimalText').textContent = `${labels[opt]}(${opt})`;
+    return opt;
+  };
+
+  const updateStats = (resetTimer = false) => {
+    let totalSum = 0, currentPassAcc = 0;
+    const times = [];
+    const items = Array.from(document.querySelectorAll('.history-item')).reverse();
+    items.forEach(item => {
+      const v = parseInt(item.dataset.val) || 0;
+      totalSum += v;
+      if (item.dataset.sec && item.dataset.main === "true") times.push(parseFloat(item.dataset.sec));
+      if (item.dataset.type === 'pass') currentPassAcc += v;
+    });
+    
+    el('historySum').textContent = totalSum.toLocaleString();
+    const passLimit = parseInt(el('passbook').value);
+    if (passLimit > 0) el('totalExp').textContent = Math.max(0, currentPassAcc - offsetPass).toLocaleString();
+    el('historyTotal').style.display = totalSum > 0 ? 'block' : 'none';
+
+    if (resetTimer || times.length <= 1) {
+      el('avgTime').textContent = '--:--.--';
+      el('forecastArea').style.display = 'none';
+    } else {
+      const sorted = [...new Set(times)].sort((a,b)=>a-b);
+      const diff = sorted[sorted.length-1] - sorted[0];
+      const avgSec = diff / (sorted.length - 1);
+      if (avgSec > 0.1) {
+        el('avgTime').textContent = fmtTime(avgSec);
+        const battles = times.length;
+        const b30 = Math.floor(1800 / avgSec);
+        const expPerBattle = totalSum / (battles || 1);
+        el('forecastExp').textContent = `${Math.round((expPerBattle * b30) / 10000)}万 ～ ${Math.round((expPerBattle * (b30+1)) / 10000)}万`;
+        el('forecastArea').style.display = 'block';
+      }
+    }
+  };
+
+  const createRow = (bId, count, exp, type, sec, tStr, isMain = false) => {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.dataset.val = exp; div.dataset.type = type; div.dataset.sec = sec; div.dataset.main = isMain; div.dataset.count = count; div.dataset.bid = bId;
+    div.style = "display:flex; justify-content:space-between; align-items:center; padding:6px; border-bottom:1px solid #eee; font-size:11px;";
+    
+    const tagMap = { 'pass': '<span style="color:#d32f2f;font-weight:bold;margin-left:4px;">[通]</span>', 'angel': '<span style="color:#2980b9;font-weight:bold;margin-left:4px;">[エ]</span>', 'overflow': '<span style="color:#95a5a5;font-weight:bold;margin-left:4px;">[溢]</span>', 'normal': '' };
+    div.innerHTML = `<div style="display:flex; align-items:center; flex:1;"><span style="color:#999; min-width:25px;">#${bId}</span><span class="label-btn" style="font-weight:bold; min-width:35px; border:1px solid #0066cc; border-radius:4px; background:#e8f4fd; text-align:center; cursor:pointer; user-select:none;">${labels[count]}</span><strong class="exp-val" style="min-width:65px; text-align:right; margin-left:6px;">${exp.toLocaleString()}</strong>${tagMap[type]}</div><div style="display:flex; align-items:center; gap:8px;"><span style="color:#666; font-family:monospace;">${tStr}</span><button class="del-btn" style="border:none;background:none;color:#ccc;cursor:pointer;font-size:14px;padding:0 4px;">×</button></div>`;
+    
+    // ラベル（A〜L）クリックで書き換え
+    div.querySelector('.label-btn').onclick = () => {
+      let nextCount = parseInt(div.dataset.count) + 1;
+      if (nextCount > 12) nextCount = 1;
+      const newExps = getExpBreakdown(nextCount);
+      
+      // データ更新
+      div.dataset.count = nextCount;
+      div.querySelector('.label-btn').textContent = labels[nextCount];
+      
+      // 同じ戦闘ID(#)の行（通帳/エンゼル）をすべて更新
+      document.querySelectorAll(`.history-item[data-bid="${bId}"]`).forEach(item => {
+        const c = parseInt(item.dataset.count); // 共通のカウント
+        const res = getExpBreakdown(nextCount);
+        let newVal = 0;
+        if (item.dataset.type === 'angel') newVal = res.angel;
+        else if (item.dataset.type === 'pass' || item.dataset.type === 'normal' || item.dataset.type === 'overflow') newVal = res.common;
+        
+        item.dataset.val = newVal;
+        item.querySelector('.exp-val').textContent = newVal.toLocaleString();
+      });
+      
+      updateStats();
+    };
+
+    div.querySelector('.del-btn').onclick = (e) => {
+      e.stopPropagation();
+      div.remove();
+      updateStats();
+    };
+    
+    el('resultHistory').prepend(div);
+  };
+
+  el('calcBtn').onclick = () => {
+    const btn = el('calcBtn');
+    if (btn.disabled) return;
+    battleCount++;
+    const count = parseInt(el('callNum').value), res = getExpBreakdown(count), sec = timerInterval ? (Date.now()-startTime)/1000 : pausedSec, tStr = el('timerDisplay').textContent;
+    const passLimit = parseInt(el('passbook').value);
+    
+    if (passLimit > 0) {
+      if (res.angel > 0) createRow(battleCount, count, res.angel, 'angel', sec, tStr);
+      let accPass = 0; document.querySelectorAll('.history-item[data-type="pass"]').forEach(i => accPass += parseInt(i.dataset.val));
+      const remain = Math.max(0, passLimit - (accPass - offsetPass));
+      if (remain >= res.common) { createRow(battleCount, count, res.common, 'pass', sec, tStr, true); }
+      else if (remain > 0) { createRow(battleCount, count, res.common - remain, 'overflow', sec, tStr); createRow(battleCount, count, remain, 'pass', sec, tStr, true); }
+      else { createRow(battleCount, count, res.common, 'overflow', sec, tStr, true); }
+    } else {
+      createRow(battleCount, count, res.total, 'normal', sec, tStr, true);
+    }
+    updateStats();
+    btn.disabled = true; btn.style.background = "#ccc";
+    let cb = 3; const lock = setInterval(() => {
+      if (--cb > 0) btn.textContent = `ロック中 (${cb})`;
+      else { clearInterval(lock); btn.disabled = false; btn.style.background = "#0066cc"; updateUI(); }
+    }, 1000);
+  };
+
+  el('setOptimalBtn').onclick = () => { el('callNum').value = updateUI(); updateUI(); };
+  el('timerStart').onclick = () => { if (!timerInterval) { startTime = Date.now() - (pausedSec * 1000); timerInterval = setInterval(() => { const s = (Date.now()-startTime)/1000; el('timerDisplay').textContent = fmtTime(s); }, 30); }};
+  el('timerStop').onclick = () => { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; pausedSec = (Date.now()-startTime)/1000; }};
+  el('timerReset').onclick = () => { el('timerStop').onclick(); pausedSec = startTime = 0; el('timerDisplay').textContent = '00:00.00'; updateStats(true); };
+  el('allResetBtn').onclick = () => { el('resultHistory').innerHTML = ''; el('timerReset').onclick(); offsetPass = battleCount = 0; updateUI(); };
+  el('passbookResetBtn').onclick = () => { let ps = 0; document.querySelectorAll('.history-item[data-type="pass"]').forEach(i => ps += parseInt(i.dataset.val)); offsetPass = ps; updateStats(); };
+  document.querySelectorAll('input, select').forEach(i => i.onchange = () => { updateUI(); updateStats(); });
+  updateUI();
+})();
+</script>
+</p>

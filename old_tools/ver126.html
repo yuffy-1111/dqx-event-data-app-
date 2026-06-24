@@ -1,0 +1,271 @@
+<div id="mainWindow" style="max-width: 420px; margin: 10px auto; padding: 15px; background: #000080; border: 3px solid #fff; border-radius: 8px; font-family: sans-serif; color: #fff; box-shadow: 0 0 0 2px #000, 0 4px 12px rgba(0,0,0,0.5); line-height: 1.3; user-select: none; position: relative;">
+<div id="meganteFlash" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 9999;"></div>
+<div style="display: flex; gap: 6px; margin-bottom: 8px;"><select id="monsterSelect" style="flex: 2; padding: 6px; font-size: 16px; border: 2px solid #fff; border-radius: 4px; font-weight: bold; background: #000; color: #fff;">
+<option value="returner" data-base="13118" data-bonus="0">リターナーモア</option>
+<option selected="selected" value="durahan" data-base="22802" data-bonus="4561">デュラハーン</option>
+<option value="hell" data-base="23990" data-bonus="4798">ヘルガーディアン</option>
+<option value="scare" data-base="22904" data-bonus="4581">スケアフレイル</option>
+</select><select id="passbook" style="flex: 1; padding: 6px; font-size: 13px; border: 1px solid #fff; border-radius: 4px; background: #000; color: #fff;">
+<option selected="selected" value="0">通帳なし</option>
+<option value="5000000">通帳1(500万)</option>
+<option value="10000000">通帳2(1000万)</option>
+</select></div>
+<div style="display: flex; gap: 4px; margin-bottom: 8px;">
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; border: 2px solid #000; border-radius: 6px; padding: 4px;"><span id="currentExp" style="font-size: 22px; font-weight: bold; color: #000; line-height: 1; letter-spacing: -0.5px;">0</span> <span id="overflowNotice" style="font-size: 10px; color: #666; margin-top: 2px; visibility: hidden;">溢れ: 0</span></div>
+<div id="setOptimalBtn" style="width: 48px; cursor: pointer; background: #000; border: 2px solid #ffff00; border-radius: 6px; text-align: center; display: flex; flex-direction: column; justify-content: center; color: #ffff00;">
+<div style="font-size: 9px; line-height: 1;">最適</div>
+<div id="optimalText" style="font-size: 13px; font-weight: bold; line-height: 1.1;">--</div>
+</div>
+<div id="plusOneBtn" style="width: 38px; cursor: pointer; background: #000; border: 1px solid #ffff00; border-radius: 6px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ffff00;">
+<div style="font-size: 9px; line-height: 1;">最適</div>
+<div style="font-size: 14px; font-weight: bold;">+1</div>
+</div>
+<div style="width: 60px; display: flex; flex-direction: column; gap: 2px;">
+<div style="font-size: 8px; color: #ccc; text-align: center; line-height: 1;">討伐数</div>
+<select id="callNum" style="flex: 1; width: 100%; padding: 2px; font-size: 20px; font-weight: bold; border: 2px solid #fff; border-radius: 4px; text-align: center; background: #000; color: #fff;">
+<option value="1">A</option>
+<option value="2">B</option>
+<option value="3">C</option>
+<option value="4">D</option>
+<option value="5">E</option>
+<option value="6">F</option>
+<option value="7">G</option>
+<option value="8">H</option>
+<option value="9">I</option>
+<option value="10">J</option>
+<option selected="selected" value="11">K</option>
+<option value="12">L</option>
+</select></div>
+</div>
+<div style="background: #000040; padding: 6px; border-radius: 6px; border: 1px solid #fff; margin-bottom: 8px; display: flex; gap: 6px; align-items: stretch;">
+<div style="flex: 1; font-size: 13px; display: flex; flex-direction: column; align-items: flex-end; padding-right: 35px; justify-content: center;">
+<div style="margin-bottom: 4px; display: flex; gap: 8px;"><label style="cursor: pointer;"><input name="energy" type="radio" value="none" />無</label> <label style="cursor: pointer;"><input checked="checked" name="energy" type="radio" value="genki" />元気</label> <label style="cursor: pointer;"><input name="energy" type="radio" value="bakushin" />爆伸</label></div>
+<div style="border-top: 1px dashed #fff; padding-top: 4px; width: 100%; display: flex; justify-content: flex-end; gap: 10px; font-size: 12px;">
+<div style="display: flex; flex-direction: column; gap: 1px;"><label style="cursor: pointer;"><input id="food" checked="checked" type="checkbox" />料理</label> <label style="cursor: pointer;"><input id="training" type="checkbox" />修練</label></div>
+<div style="display: flex; flex-direction: column; gap: 1px;"><label style="cursor: pointer;"><input id="angel" type="checkbox" />エンゼル</label> <label style="cursor: pointer;"><input id="emperor" type="checkbox" />皇帝</label></div>
+</div>
+</div>
+<button id="timerStart" style="width: 75px; font-size: 13px; background: #000; border: 1px solid #fff; border-radius: 4px; color: #fff; cursor: pointer; font-weight: bold; padding: 2px;">討伐<br />開始</button></div>
+<div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: stretch;">
+<div style="flex: 6; background: #000; padding: 8px 10px; border-radius: 6px; border: 1px solid #fff; display: flex; flex-direction: column; justify-content: center;">
+<div style="text-align: center;"><span style="font-size: 12px; color: #ccc; font-weight: bold; margin-right: 4px;">総獲得</span> <span id="historySum" style="font-size: 24px; font-weight: bold; color: #ffff00; font-family: 'Verdana', sans-serif;">0</span></div>
+<div id="historyTotal" style="font-size: 11px; text-align: center; border-top: 1px solid #444; margin-top: 4px; padding-top: 4px; display: flex; flex-direction: column; gap: 2px;">
+<div>平均: <strong id="avgTime" style="color: #ff9900; font-family: 'Verdana', sans-serif; font-size: 13px;">--:--.--</strong></div>
+<div>想定玉給: <span id="forecastExp" style="color: #00ff00; font-weight: bold; font-size: 13px;">--</span></div>
+</div>
+</div>
+<button id="calcBtn" style="flex: 4; padding: 0; font-size: 22px; background: #0066cc; color: white; border: 2px solid #fff; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.4);">獲得</button></div>
+<div style="background: #000; padding: 6px; border-radius: 6px; border: 1px solid #fff; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;">
+<div style="background: #000; border: 1px solid #fff; border-radius: 4px; padding: 6px 0; display: flex; justify-content: center; align-items: baseline; gap: 12px;">
+<div id="timerDisplay" style="font-size: 28px; font-weight: bold; font-family: 'Verdana', sans-serif; color: #ffff00; line-height: 1; letter-spacing: -1px;">00:00.00</div>
+<div style="font-family: 'Verdana', sans-serif; color: #00ffff; font-size: 18px; font-weight: bold; line-height: 1; letter-spacing: -0.5px;"><span style="font-size: 10px; font-weight: normal; margin-right: 2px;">LAP:</span><span id="lapDisplay">00:00.00</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px;"><button id="allResetBtn" style="padding: 8px 0; font-size: 11px; background: #000; border: 1px solid #ff4d4f; color: #ff4d4f; border-radius: 4px; font-weight: bold; cursor: pointer;">メガンテ</button> <button id="timerStop" style="padding: 8px 0; font-size: 11px; background: #e74c3c; color: white; border: 1px solid #fff; border-radius: 4px; font-weight: bold; cursor: pointer;">停止</button> <button id="lapBtn" style="padding: 8px 0; font-size: 11px; background: #3498db; color: white; border: 1px solid #fff; border-radius: 4px; font-weight: bold; cursor: pointer;">転職</button></div>
+</div>
+<div id="totalArea" style="display: none; padding: 6px 10px; background: #000040; border: 1px solid #fff; border-radius: 6px; text-align: center; margin-bottom: 10px;">
+<div style="font-size: 13px; margin-bottom: 4px;">通帳: <strong id="totalExp" style="color: #ff4d4f; font-size: 16px; font-family: 'Verdana', sans-serif;">0</strong> / <span id="passLimitText" style="font-size: 12px; color: #ccc;">5,000,000</span></div>
+<div style="display: flex; gap: 6px; justify-content: center;"><button id="passbookResetBtn" style="flex: 1; font-size: 11px; cursor: pointer; background: #000; border: 1px solid #ccc; border-radius: 4px; color: #ccc; padding: 4px; font-weight: bold;">リセット</button> <button id="minusOneLvBtn" style="flex: 1.2; font-size: 11px; cursor: pointer; background: #0066cc; color: #fff; border: 1px solid #fff; border-radius: 4px; padding: 4px; font-weight: bold;">1Lv分引出</button></div>
+</div>
+<div id="resultHistory" style="margin-top: 10px; max-height: 250px; overflow-y: auto; border-top: 1px solid #fff; background: rgba(0,0,0,0.3);"></div>
+</div>
+<style>
+@keyframes meganteShake { 0%{transform:translate(0,0)} 10%{transform:translate(-5px,-5px)} 20%{transform:translate(5px,5px)} 30%{transform:translate(-5px,5px)} 40%{transform:translate(5px,-5px)} 100%{transform:translate(0,0)} }
+@keyframes flashEffect { 0%{opacity:0} 50%{opacity:1} 100%{opacity:0} }
+.exec-megante { animation: meganteShake 0.1s infinite; }
+.history-item { color: #fff !important; border-bottom: 1px solid #444 !important; }
+.history-item .exp-val { color: #ffff00 !important; }
+.history-item .rare-sel, .history-item .row-call-sel { background: #000 !important; color: #fff !important; border: 1px solid #fff !important; }
+</style>
+<p>
+<script>
+(function() {
+  const labels = ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+  const rareExps = { none: 0, mk: 48240, hm: 12060, gn: 2240, sn: 1120 };
+  const LV_EXP = 1589326; 
+  const el = id => document.getElementById(id);
+  let timerInterval = null, startTime = 0, pausedSec = 0, lastLapMark = 0, offsetPass = 0, battleCount = 0;
+  let currentOptimal = 1;
+
+  const fmtTime = (s) => {
+    if (isNaN(s) || s < 0 || s === Infinity) return "00:00.00";
+    const m = Math.floor(s / 60);
+    const ss = (s % 60).toFixed(2).padStart(5, '0');
+    return `${m.toString().padStart(2, '0')}:${ss}`;
+  };
+
+  const updateDisplayTimes = (s) => {
+    el('timerDisplay').textContent = fmtTime(s);
+    el('lapDisplay').textContent = fmtTime(s - lastLapMark);
+  };
+
+  const getExpBreakdown = (count, rareKey = 'none') => {
+    const sel = el('monsterSelect').options[el('monsterSelect').selectedIndex];
+    const base = parseInt(sel.dataset.base) || 0;
+    const bonus = parseInt(sel.dataset.bonus) || 0;
+    const energy = document.querySelector('input[name="energy"]:checked')?.value || 'none';
+    const hasPass = parseInt(el('passbook').value) > 0;
+    const isHighLimit = (energy === 'bakushin' || el('training').checked);
+    const limit = isHighLimit ? 1499999 : 599999;
+    
+    const calc = (b) => {
+      let res = b;
+      if (el('food').checked) res += Math.round(b * 0.3);
+      if (energy === 'genki') res += b;
+      if (energy === 'bakushin') res += b * 2;
+      if (el('training').checked) res += b;
+      if (el('emperor').checked) res += b;
+      return res;
+    };
+
+    const pC_unit = calc(base) + bonus;
+    const pRare_base = rareExps[rareKey] || 0;
+    const pRare = calc(pRare_base);
+    const totalCommonRaw = pC_unit * count + pRare;
+
+    const pA_unit = el('angel').checked ? (base * 2) : 0;
+    const pRareA = el('angel').checked ? (pRare_base * 2) : 0;
+    const totalAngelRaw = pA_unit * count + pRareA;
+
+    if (hasPass) {
+      const cRes = Math.min(totalCommonRaw, limit);
+      const aRes = Math.min(totalAngelRaw, 599999);
+      return { total: cRes + aRes, common: cRes, angel: aRes, overflow: (totalCommonRaw - cRes) + (totalAngelRaw - aRes) };
+    } else {
+      const finalTotal = Math.min(totalCommonRaw + totalAngelRaw, limit);
+      return { total: finalTotal, common: finalTotal, angel: 0, overflow: (totalCommonRaw + totalAngelRaw - finalTotal) };
+    }
+  };
+
+  const updateUI = () => {
+    const count = parseInt(el('callNum').value);
+    const exps = getExpBreakdown(count);
+    el('currentExp').textContent = exps.total.toLocaleString();
+    el('overflowNotice').style.visibility = exps.overflow > 0 ? 'visible' : 'hidden';
+    el('overflowNotice').textContent = `溢れ: ${exps.overflow.toLocaleString()}`;
+
+    const passLimit = parseInt(el('passbook').value);
+    el('totalArea').style.display = passLimit > 0 ? 'block' : 'none';
+    el('passLimitText').textContent = passLimit.toLocaleString();
+    
+    let opt = 1;
+    const energy = document.querySelector('input[name="energy"]:checked')?.value || 'none';
+    const isHighLimit = (energy === 'bakushin' || el('training').checked);
+    const limit = isHighLimit ? 1499999 : 599999;
+    for (let i = 1; i <= 12; i++) {
+        const res = getExpBreakdown(i);
+        if (res.common < limit) opt = i; else break;
+    }
+    currentOptimal = opt;
+    el('optimalText').textContent = `${labels[opt]}(${opt})`;
+  };
+
+  const updateStats = (resetTimer = false) => {
+    let totalSum = 0, currentPassAcc = 0;
+    const times = [];
+    const items = Array.from(document.querySelectorAll('.history-item')).reverse();
+    items.forEach(item => {
+      const v = parseInt(item.dataset.val) || 0;
+      totalSum += v;
+      if (item.dataset.sec && item.dataset.main === "true") times.push(parseFloat(item.dataset.sec));
+      if (item.dataset.type === 'pass') currentPassAcc += v;
+    });
+    el('historySum').textContent = totalSum.toLocaleString();
+    const passLimit = parseInt(el('passbook').value);
+    if (passLimit > 0) el('totalExp').textContent = Math.max(0, currentPassAcc - offsetPass).toLocaleString();
+    
+    if (!resetTimer && times.length > 1) {
+      const sorted = [...new Set(times)].sort((a,b)=>a-b);
+      const avgSec = (sorted[sorted.length-1] - sorted[0]) / (sorted.length - 1);
+      if (avgSec > 0.1) {
+        el('avgTime').textContent = fmtTime(avgSec);
+        const b30 = Math.floor(1800 / avgSec);
+        const expPerBattle = totalSum / (times.length || 1);
+        el('forecastExp').textContent = `${Math.round((expPerBattle * b30) / 10000)}万～${Math.round((expPerBattle * (b30+1)) / 10000)}万`;
+      } else { el('avgTime').textContent = '--:--.--'; el('forecastExp').textContent = '--'; }
+    } else { el('avgTime').textContent = '--:--.--'; el('forecastExp').textContent = '--'; }
+  };
+
+  const createRow = (bId, count, exp, type, totalSec, lapSec, isMain = false) => {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.dataset.val = exp; div.dataset.type = type; div.dataset.sec = totalSec; div.dataset.main = isMain; div.dataset.count = count; div.dataset.bid = bId;
+    div.style = "display:flex; align-items:center; padding:8px 4px; border-bottom:1px solid #444; font-size:12px; white-space:nowrap; gap:4px; color:#fff;";
+    const tagMap = { 'pass': '[通]', 'angel': '[エ]', 'overflow': '[溢]', 'normal': '', 'lap_only': '[転職]' };
+    const colorMap = { 'pass': '#ff4d4f', 'angel': '#3498db', 'overflow': '#999', 'lap_only': '#00ffff' };
+    const numLabel = bId === 'LAP' ? `<span style="color:#00ffff; font-weight:bold; width:26px; font-size:10px;">転職</span>` : `<span style="color:#ccc; width:26px; font-size:10px;">#${bId}</span>`;
+    const timeDisplay = `<div style="font-family: 'Verdana', sans-serif; width:65px; text-align:left;">
+      <div style="color:#ffff00; font-size:11px; font-weight:bold;">${fmtTime(totalSec)}</div>
+      ${lapSec >= 0 ? `<div style="color:#00ffff; font-weight:bold; font-size:10px; margin-top:-2px;">L ${fmtTime(lapSec)}</div>` : ""}
+    </div>`;
+    const expArea = bId === 'LAP' ? `<div style="width:95px; text-align:center; color:#666; font-size:10px;">転職ポイント</div>` : `<div style="width:95px; display:flex; align-items:center; justify-content:flex-start;"><strong class="exp-val" style="font-size:14px; min-width:62px; text-align:right; margin-right:3px; font-family: 'Verdana', sans-serif; color:#ffff00;">${exp.toLocaleString()}</strong><span style="color:${colorMap[type]}; font-weight:bold; font-size:10px;">${tagMap[type]}</span></div>`;
+    const delBtn = `<button class="del-btn" style="border:none;background:none;color:#666;cursor:pointer;font-size:20px;padding:0 4px;line-height:1;">×</button>`;
+    let controlArea = bId !== 'LAP' ? `<div style="display:flex; gap:3px; flex:1; min-width:115px;"><select class="rare-sel" style="font-size:13px; flex:1.8; border:1px solid #fff; border-radius:2px; background:#000; color:#fff; padding:2px 1px; height:26px;"><option value="none">お供無</option><option value="hm">はぐメタ</option><option value="mk">メタキン</option><option value="gn">ゲノミー</option><option value="sn">仙人</option></select><select class="row-call-sel" style="font-size:13px; border:1px solid #fff; border-radius:2px; background:#000; color:#fff; flex:1; padding:2px 1px; height:26px;">${labels.map((l,i)=>i>0?`<option value="${i}" ${i==count?'selected':''}>${l}</option>`:'').join('')}</select></div>` : `<div style="flex:1; color:#666; text-align:center; font-size:10px;">----------</div>`;
+    div.innerHTML = numLabel + timeDisplay + expArea + delBtn + controlArea;
+    if(bId !== 'LAP'){
+      const updateRowExp = () => {
+        const c = parseInt(div.querySelector('.row-call-sel').value), r = div.querySelector('.rare-sel').value;
+        div.dataset.count = c;
+        document.querySelectorAll(`.history-item[data-bid="${bId}"]`).forEach(item => {
+          const res = getExpBreakdown(c, r);
+          let newVal = (item.dataset.type === 'angel') ? res.angel : res.common;
+          item.dataset.val = newVal; item.querySelector('.exp-val').textContent = newVal.toLocaleString();
+        });
+        updateStats();
+      };
+      div.querySelector('.row-call-sel').onchange = updateRowExp; div.querySelector('.rare-sel').onchange = updateRowExp;
+    }
+    div.querySelector('.del-btn').onclick = () => { div.remove(); updateStats(); };
+    el('resultHistory').prepend(div);
+  };
+
+  el('calcBtn').onclick = () => {
+    const btn = el('calcBtn'); if (btn.disabled) return;
+    battleCount++;
+    const nowSec = timerInterval ? (Date.now()-startTime)/1000 : pausedSec;
+    const lapTime = nowSec - lastLapMark, count = parseInt(el('callNum').value), res = getExpBreakdown(count), passLimit = parseInt(el('passbook').value);
+    if (passLimit > 0) {
+      if (res.angel > 0) createRow(battleCount, count, res.angel, 'angel', nowSec, lapTime);
+      let accPass = 0; document.querySelectorAll('.history-item[data-type="pass"]').forEach(i => accPass += parseInt(i.dataset.val));
+      const remain = Math.max(0, passLimit - (accPass - offsetPass));
+      if (remain >= res.common) createRow(battleCount, count, res.common, 'pass', nowSec, lapTime, true);
+      else if (remain > 0) { createRow(battleCount, count, res.common - remain, 'overflow', nowSec, lapTime); createRow(battleCount, count, remain, 'pass', nowSec, lapTime, true); }
+      else createRow(battleCount, count, res.common, 'overflow', nowSec, lapTime, true);
+    } else createRow(battleCount, count, res.total, 'normal', nowSec, lapTime, true);
+    lastLapMark = nowSec; updateDisplayTimes(nowSec); updateStats();
+    btn.disabled = true; btn.style.background = "#333";
+    let cb = 3; const lock = setInterval(() => { if (--cb > 0) btn.textContent = `(${cb})`; else { clearInterval(lock); btn.disabled = false; btn.style.background = "#0066cc"; btn.textContent = "獲得"; updateUI(); }}, 1000);
+  };
+
+  el('minusOneLvBtn').onclick = () => { offsetPass += LV_EXP; updateStats(); };
+  el('lapBtn').onclick = () => {
+    const nowSec = timerInterval ? (Date.now()-startTime)/1000 : pausedSec;
+    createRow('LAP', 0, 0, 'lap_only', nowSec, nowSec - lastLapMark, false);
+    lastLapMark = nowSec; updateDisplayTimes(nowSec);
+  };
+  el('setOptimalBtn').onclick = () => { el('callNum').value = currentOptimal; updateUI(); };
+  el('plusOneBtn').onclick = () => { el('callNum').value = Math.min(12, currentOptimal + 1); updateUI(); };
+  el('timerStart').onclick = () => { if (!timerInterval) { startTime = Date.now() - (pausedSec * 1000); timerInterval = setInterval(() => updateDisplayTimes((Date.now()-startTime)/1000), 30); }};
+  el('timerStop').onclick = () => { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; pausedSec = (Date.now()-startTime)/1000; updateDisplayTimes(pausedSec); }};
+  
+  el('allResetBtn').onclick = () => {
+    const win = el('mainWindow'); const flash = el('meganteFlash');
+    win.classList.add('exec-megante'); flash.style.animation = 'flashEffect 0.5s forwards';
+    setTimeout(() => {
+        el('timerStop').onclick();
+        pausedSec = startTime = lastLapMark = battleCount = 0;
+        let ps = 0; document.querySelectorAll('.history-item[data-type="pass"]').forEach(i => ps += parseInt(i.dataset.val));
+        offsetPass = ps; 
+        updateDisplayTimes(0); 
+        el('resultHistory').innerHTML = ''; 
+        updateStats(true); 
+        updateUI();
+        win.classList.remove('exec-megante'); flash.style.animation = '';
+    }, 500);
+  };
+
+  el('passbookResetBtn').onclick = () => { let ps = 0; document.querySelectorAll('.history-item[data-type="pass"]').forEach(i => ps += parseInt(i.dataset.val)); offsetPass = ps; updateStats(); };
+  document.querySelectorAll('input, select').forEach(i => i.onchange = updateUI);
+  updateUI();
+})();
+</script>
+</p>

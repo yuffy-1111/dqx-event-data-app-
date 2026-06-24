@@ -1,0 +1,173 @@
+<p> </p>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;padding:14px;background:#f0f2f5}
+@media(prefers-color-scheme:dark){body{background:#0a0a0f}}
+
+.c{max-width:420px;margin:0 auto;background:#fff;border:2px solid #06c;border-radius:10px;padding:12px;font-family:sans-serif;color:#333;box-shadow:0 2px 8px rgba(0,0,0,0.1);line-height:1.25}
+@media(prefers-color-scheme:dark){.c{background:#1a1a2a;color:#e8e8f0;border-color:#3a7caa}}
+
+select,input,button{font-family:inherit}
+@media(prefers-color-scheme:dark){select,input,button{background:#2a2a3a!important;color:#e8e8f0!important;border-color:#4a6a8a!important}}
+
+.h{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;gap:4px}
+.b1{background:#06c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)}
+.b2{background:#e74c3c;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
+.b3{background:#3498db;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
+.b4{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;font-weight:bold;cursor:pointer}
+@media(prefers-color-scheme:dark){.b4{background:#3a2a2a!important;border-color:#aa6a6a!important;color:#ffaaaa!important}}
+
+.bg{background:#f9f9f9;border:1px solid #eee;border-radius:6px}
+@media(prefers-color-scheme:dark){.bg{background:#0f0f17!important;border-color:#2a2a3a!important}
+.h{border-bottom-color:#2a2a3a!important}
+#ce{color:#5a9eff!important}
+#ot,#ob div:first-child,#pb div:first-child{color:#5a9eff!important}
+.tn{color:#fff!important}
+.ln{color:#2cc9ff!important}
+.ac{color:#ffaa66!important}
+.fc{color:#66ffaa!important}
+.pt{color:#ff8888!important}
+#hs{color:#fff!important}}
+
+#ta{background:#f0f4ff;border:1px solid #b3c7ff;padding:6px!important}
+@media(prefers-color-scheme:dark){#ta{background:#2a2f45!important;border-color:#4a5a7a!important}}
+
+#ob, #pob, [style*="f0f7ff"], [style*="e8f4fd"] {background:#e8f0ff!important; border-color:#a3c0ff!important;}
+@media(prefers-color-scheme:dark){#ob, #pob, [style*="f0f7ff"], [style*="e8f4fd"] {background:#1e2a44!important; border-color:#4a6a9a!important;}
+#ob div, #pob div, #ce {color:#7ab0ff!important}}
+
+.rs, .cs {font-size:11px !important; padding:1px 4px !important; min-width:48px;}
+.rs {flex:1.45 !important;}
+.cs {flex:0.9 !important;}
+
+#td, #ld, #at, #ot, #te, #plt {font-family:'Verdana',system-ui,sans-serif !important; font-variant-numeric:tabular-nums;}
+#te, #plt {font-size:15px !important; font-weight:bold;}
+
+#timer-row {background:#f8f9fc !important; border-radius:6px; padding:6px 8px !important; margin-bottom:6px !important;}
+@media(prefers-color-scheme:dark){#timer-row{background:#2a2f45 !important;}}
+
+label{color:#000!important}
+@media(prefers-color-scheme:dark){label{color:#e8e8f0!important}}
+</style>
+<div>
+<div class="c">
+<div style="display: flex; gap: 6px; margin-bottom: 8px;"><select id="ms" style="flex: 2; padding: 6px; font-size: 15px; border: 1px solid #06c; border-radius: 4px; font-weight: bold; background: #f0f7ff;">
+<option value="returner" data-base="13118" data-bonus="0">リターナーモア</option>
+<option selected="selected" value="durahan" data-base="22802" data-bonus="4561">デュラハーン</option>
+<option value="hell" data-base="23990" data-bonus="4798">ヘルガーディアン</option>
+<option value="scare" data-base="22904" data-bonus="4581">スケアフレイル</option>
+</select><select id="pb" style="flex: 1; padding: 6px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px;">
+<option selected="selected" value="0">通帳なし</option>
+<option value="5000000">通帳1(500万)</option>
+<option value="10000000">通帳2(1000万)</option>
+</select></div>
+<div style="display: flex; gap: 4px; margin-bottom: 8px;">
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: 6px; padding: 4px;"><span id="ce" style="font-size: 22px; font-weight: bold; color: #06c;">0</span><span id="of" style="font-size: 9px; color: #999; margin-top: 2px; visibility: hidden;">溢れ:0</span></div>
+<div id="ob" style="width: 48px; cursor: pointer; background: #e8f4fd; border: 1px solid #b3d9ff; border-radius: 6px; text-align: center; display: flex; flex-direction: column; justify-content: center;">
+<div style="font-size: 8px; color: #06c;">最適</div>
+<div id="ot" style="font-size: 12px; font-weight: bold; color: #06c;">--</div>
+</div>
+<div id="pob" style="width: 38px; cursor: pointer; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: 6px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+<div style="font-size: 8px; color: #06c;">最適</div>
+<div style="font-size: 13px; font-weight: bold; color: #06c;">+1</div>
+</div>
+<div style="width: 60px;">
+<div style="font-size: 7px; color: #666; text-align: center;">討伐数</div>
+<select id="cn" style="width: 100%; padding: 2px; font-size: 18px; font-weight: bold; border: 1px solid #ccc; border-radius: 4px; text-align: center;">
+<option value="1">A</option>
+<option value="2">B</option>
+<option value="3">C</option>
+<option value="4">D</option>
+<option value="5">E</option>
+<option value="6">F</option>
+<option value="7">G</option>
+<option value="8">H</option>
+<option value="9">I</option>
+<option value="10">J</option>
+<option selected="selected" value="11">K</option>
+<option value="12">L</option>
+</select></div>
+</div>
+<div id="timer-row" style="padding: 6px 8px; margin-bottom: 8px; display: flex; gap: 6px;">
+<div style="flex: 1; font-size: 12px; display: flex; flex-direction: column; align-items: flex-end; padding-right: 30px; justify-content: center;">
+<div style="margin-bottom: 3px; display: flex; gap: 8px;"><label><input name="e" type="radio" value="none" />無</label> <label><input checked="checked" name="e" type="radio" value="genki" />元気</label> <label><input name="e" type="radio" value="bakushin" />爆伸</label></div>
+<div style="border-top: 1px solid #ddd; padding-top: 3px; width: 100%; display: flex; justify-content: flex-end; gap: 14px; font-size: 11px;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><label><input id="fd" checked="checked" type="checkbox" />料理</label> <label><input id="tr" type="checkbox" />修練</label></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><label><input id="ag" type="checkbox" />エンゼル</label> <label><input id="em" type="checkbox" />皇帝</label></div>
+</div>
+</div>
+<button id="ts" style="width: 72px; font-size: 12px; background: #3a6a6a; border: 1px solid #5a8a8a; border-radius: 4px; color: #fff; cursor: pointer; font-weight: bold; padding: 2px;">タイマー<br />開始</button></div>
+<div style="display: flex; gap: 6px; margin-bottom: 8px;">
+<div class="bg" style="flex: 6; padding: 6px 8px; border-radius: 6px; text-align: center;">
+<div><span style="font-size: 12px; font-weight: bold;">総獲得</span> <span id="hs" style="font-size: 22px; font-weight: bold; font-family: 'Verdana',system-ui,sans-serif; font-variant-numeric: tabular-nums;">0</span></div>
+<div style="font-size: 11px; border-top: 1px solid #ddd; margin-top: 4px; padding-top: 4px;">
+<div>平均: <strong id="at" class="ac" style="font-family: monospace; font-size: 12px;">--:--.--</strong></div>
+<div>想定玉給: <span id="fc" class="fc" style="font-weight: bold; font-size: 10px;">--</span></div>
+</div>
+</div>
+<button id="calc" class="b1" style="flex: 4; font-size: 21px; border-radius: 6px;">加算</button></div>
+<div class="bg" style="padding: 6px; border-radius: 6px; margin-bottom: 8px;">
+<div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: baseline;">
+<div id="td" class="tn" style="font-size: 28px; font-weight: bold;">00:00.00</div>
+<div><span style="font-size: 10px;">LAP:</span><span id="ld" class="ln" style="font-size: 18px; font-weight: bold;">00:00.00</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px;"><button id="ra" class="b4" style="padding: 7px; font-size: 11px;">AC</button> <button id="tsp" class="b2" style="padding: 7px; font-size: 11px;">停止</button> <button id="lp" class="b3" style="padding: 7px; font-size: 11px;">LAP</button></div>
+</div>
+<div id="ta" style="display: none; border-radius: 6px; padding: 6px!important; text-align: center; margin-bottom: 8px;">
+<div style="font-size: 12px;">通帳:<strong id="te" class="pt" style="font-family: monospace;">0</strong>/<span id="plt">5,000,000</span></div>
+<div style="display: flex; gap: 6px; margin-top: 4px;"><button id="pr" style="flex: 1; background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font-size: 11px;">リセット</button><button id="ml" style="flex: 1.2; background: #06c; color: #fff; border: none; border-radius: 4px; padding: 4px; font-size: 11px;">1Lv分引出</button></div>
+</div>
+<div id="rh" style="margin-top: 8px; max-height: 250px; overflow-y: auto; border-top: 1px solid #eee;"></div>
+</div>
+</div>
+<script>
+(function(){
+const L=["","A","B","C","D","E","F","G","H","I","J","K","L"],RX={none:0,mk:48240,hm:12060,gn:2240,sn:1120},LV=1589326;
+const $=id=>document.getElementById(id);
+let T=null,st=0,ps=0,lm=0,off=0,cnt=0,opt=1;
+const ft=s=>{if(isNaN(s)||s<0||s===1/0)return"00:00.00";let m=Math.floor(s/60),ss=(s%60).toFixed(2).padStart(5,"0");return `${m.toString().padStart(2,"0")}:${ss}`};
+const upT=s=>{$("td").textContent=ft(s);$("ld").textContent=ft(s-lm)};
+const exp=(c,rk="none")=>{
+let sel=$("ms").options[$("ms").selectedIndex],b=parseInt(sel.dataset.base)||0,bon=parseInt(sel.dataset.bonus)||0;
+let e=document.querySelector('input[name="e"]:checked')?.value||"none",pv=parseInt($("pb").value)||0,hp=pv>0;
+let hl=e==="bakushin"||$("tr").checked,lim=hl?1499999:599999;
+const cl=v=>{let r=v;if($("fd").checked)r+=Math.round(v*.3);if(e==="genki")r+=v;if(e==="bakushin")r+=v*2;if($("tr").checked)r+=v;if($("em").checked)r+=v;return r};
+let pC=cl(b)+bon,pR=cl(RX[rk]||0),tC=pC*c+pR,pA=$("ag").checked?b*2:0,pRA=$("ag").checked?(RX[rk]||0)*2:0,tA=pA*c+pRA;
+if(hp){let cR=Math.min(tC,lim),aR=Math.min(tA,599999);return{total:cR+aR,common:cR,angel:aR,overflow:(tC-cR)+(tA-aR)}}
+let ft=Math.min(tC+tA,lim);return{total:ft,common:ft,angel:0,overflow:tC+tA-ft}};
+const upUI=()=>{
+let c=parseInt($("cn").value),e=exp(c);$("ce").textContent=e.total.toLocaleString();
+$("of").style.visibility=e.overflow>0?"visible":"hidden";$("of").textContent=`溢れ:${e.overflow.toLocaleString()}`;
+let pl=parseInt($("pb").value)||0;$("ta").style.display=pl>0?"block":"none";$("plt").textContent=pl.toLocaleString();
+let en=document.querySelector('input[name="e"]:checked')?.value||"none",hl=en==="bakushin"||$("tr").checked,lim=hl?1499999:599999;
+for(let i=1;i<=12;i++)if(exp(i).common<lim)opt=i;else break;
+$("ot").textContent=`${L[opt]}(${opt})`};
+const upSt=(rt=!1)=>{
+let sum=0,acc=0,ts=[];Array.from(document.querySelectorAll(".h")).reverse().forEach(i=>{let v=parseInt(i.dataset.val)||0;sum+=v;if(i.dataset.sec&&i.dataset.main==="true")ts.push(parseFloat(i.dataset.sec));if(i.dataset.type==="pass")acc+=v});
+$("hs").textContent=sum.toLocaleString();let pl=parseInt($("pb").value)||0;if(pl>0){let disp=Math.max(0,acc-off);$("te").textContent=disp.toLocaleString();}
+if(!rt&&ts.length>1){let s=[...new Set(ts)].sort((a,b)=>a-b),avg=(s[s.length-1]-s[0])/(s.length-1);if(avg>.1){$("at").textContent=ft(avg);let b30=Math.floor(1800/avg),ep=sum/(ts.length||1);$("fc").textContent=`${Math.round(ep*b30/1e4)}万～${Math.round(ep*(b30+1)/1e4)}万`}else{$("at").textContent="--:--.--";$("fc").textContent="--"}}else{$("at").textContent="--:--.--";$("fc").textContent="--"}};
+const addRow=(bid,c,exp,typ,ts,lap,main=!1)=>{
+let d=document.createElement("div");d.className="h";d.dataset.val=exp;d.dataset.type=typ;d.dataset.sec=ts;d.dataset.main=main;d.dataset.count=c;d.dataset.bid=bid;
+let tm={pass:"[通]",angel:"[エ]",overflow:"[溢]",normal:"",lap_only:"[LAP]"},cm={pass:"#ff8888",angel:"#5a9eff",overflow:"#aaa",lap_only:"#2cc9ff"};
+let nl=bid==="LAP"?`<span style="color:#2cc9ff;font-weight:bold;width:26px;font-size:10px">LAP</span>`:`<span style="color:#999;width:26px;font-size:10px">#${bid}</span>`;
+let td=`<div style="font-family:monospace;width:65px"><div style="font-size:11px;font-weight:bold">${ft(ts)}</div>${lap>=0?`<div style="color:#2cc9ff;font-size:10px">L ${ft(lap)}</div>`:""}</div>`;
+let ea=bid==="LAP"?`<div style="width:95px;color:#aaa;font-size:10px">LAP MARK</div>`:`<div style="width:95px"><strong class="ev" style="font-size:13px;min-width:62px;text-align:right;font-family:monospace">${exp.toLocaleString()}</strong><span style="color:${cm[typ]};font-size:10px">${tm[typ]}</span></div>`;
+let ca=bid!=="LAP"?`<div style="display:flex;gap:3px;flex:1"><select class="rs" style="font-size:11px;border:1px solid #ccc;border-radius:2px;padding:2px"><option value="none">お供無</option><option value="hm">はぐメタ</option><option value="mk">メタキン</option><option value="gn">ゲノミー</option><option value="sn">仙人</option></select><select class="cs" style="font-size:11px;border:1px solid #06c;border-radius:2px;padding:2px">${L.map((l,i)=>i>0?`<option value="${i}" ${i==c?"selected":""}>${l}</option>`:"").join("")}</select></div>`:`<div style="flex:1;color:#aaa;text-align:center;font-size:10px">----------</div>`;
+d.innerHTML=nl+td+ea+`<button class="del" style="border:none;background:none;color:#aaa;cursor:pointer;font-size:19px;padding:0 4px">×</button>`+ca;
+if(bid!=="LAP"){let upd=()=>{let nc=parseInt(d.querySelector(".cs").value),nr=d.querySelector(".rs").value;d.dataset.count=nc;let res=exp(nc,nr),nv=d.dataset.type==="angel"?res.angel:res.common;d.dataset.val=nv;d.querySelector(".ev").textContent=nv.toLocaleString();upSt()};d.querySelector(".cs").onchange=upd;d.querySelector(".rs").onchange=upd}
+d.querySelector(".del").onclick=()=>{d.remove();upSt()};$("rh").prepend(d)};
+$("calc").onclick=()=>{if($("calc").disabled)return;cnt++;let now=T?(Date.now()-st)/1e3:ps,lap=now-lm,c=parseInt($("cn").value),res=exp(c),pl=parseInt($("pb").value)||0;
+if(pl>0){if(res.angel>0)addRow(cnt,c,res.angel,"angel",now,lap);let acc=0;document.querySelectorAll('.h[data-type="pass"]').forEach(i=>acc+=parseInt(i.dataset.val)||0);let remain=Math.max(0,pl-(acc-off));
+if(remain>=res.common)addRow(cnt,c,res.common,"pass",now,lap,!0);else if(remain>0){addRow(cnt,c,res.common-remain,"overflow",now,lap);addRow(cnt,c,remain,"pass",now,lap,!0)}else addRow(cnt,c,res.common,"overflow",now,lap,!0)
+}else addRow(cnt,c,res.total,"normal",now,lap,!0);
+lm=now;upT(now);upSt();let btn=$("calc");btn.disabled=!0;btn.style.opacity="0.5";let cb=3,iv=setInterval(()=>{--cb>0?btn.textContent=`(${cb})`:(clearInterval(iv),btn.disabled=!1,btn.style.opacity="1",btn.textContent="加算",upUI())},1e3)};
+$("ra").onclick=()=>{if(T){clearInterval(T);T=null}ps=0;st=0;lm=0;cnt=0;off=0;$("rh").innerHTML="";upT(0);upSt(!0);upUI()};
+$("ml").onclick=()=>{off+=LV;upSt()};
+$("lp").onclick=()=>{let now=T?(Date.now()-st)/1e3:ps;addRow("LAP",0,0,"lap_only",now,now-lm);lm=now;upT(now)};
+$("ob").onclick=()=>{$("cn").value=opt;upUI()};
+$("pob").onclick=()=>{$("cn").value=Math.min(12,opt+1);upUI()};
+$("ts").onclick=()=>{if(!T){st=Date.now()-ps*1e3;T=setInterval(()=>upT((Date.now()-st)/1e3),30)}};
+$("tsp").onclick=()=>{if(T){clearInterval(T);T=null;ps=(Date.now()-st)/1e3;upT(ps)}};
+$("pr").onclick=()=>{let p=0;document.querySelectorAll('.h[data-type="pass"]').forEach(i=>p+=parseInt(i.dataset.val)||0);off=p;upSt()};
+document.querySelectorAll("input,select").forEach(i=>i.onchange=upUI);upUI()})();
+</script>
