@@ -1,7 +1,7 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
 // APP_VERSION は形式に依存しない任意の文字列として扱います。
-const APP_VERSION = '1.0.9β+';
+const APP_VERSION = '1.1.0β+';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -12,10 +12,14 @@ function checkVersionUpdate() {
     const storedVersion = localStorage.getItem('dqx_app_version');
     if (storedVersion !== APP_VERSION) {
         if (storedVersion) {
-            alert(`アップデートされました！\n\n${storedVersion} → ${APP_VERSION}\n新機能・修正が含まれています。`);
-        } else {
-            alert(`ようこそ！\n\nDQXツール ver.${APP_VERSION}`);
+            // alert()はPWAスタンドアロン等でブロックされるためトースト通知を使用
+            setTimeout(() => {
+                if (typeof window.dqxShowToast === 'function') {
+                    window.dqxShowToast(`アップデートされました！ ${storedVersion} → ${APP_VERSION}`, { variant: 'success', duration: 6000 });
+                }
+            }, 500);
         }
+        // 初回起動時は通知不要（ようこそメッセージ廃止）
         localStorage.setItem('dqx_app_version', APP_VERSION);
     }
 }
@@ -90,7 +94,7 @@ const DQXTools = {
             'dqx_app_version',
             'dqx_card_order',
             'dqx_visible_tools',
-            'dqx_test_token',
+            // 'dqx_test_token' は sessionStorage に移行済み（このリストから除外）
             'dqx_dev_mode',
             'darkMode',
             'dqx_craft_last',
@@ -112,7 +116,9 @@ const DQXTools = {
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const key = localStorage.key(i);
             if (!key) continue;
-            const isAllowed = allowedLocalStorageKeys.includes(key) || key.startsWith('dqx_check_final10_');
+            const isAllowed = allowedLocalStorageKeys.includes(key)
+                || key.startsWith('dqx_check_final10_')
+                || key.startsWith('dqx_limited_checks_v3_');
             if (!isAllowed) {
                 try {
                     localStorage.removeItem(key);
@@ -123,7 +129,7 @@ const DQXTools = {
             }
         }
 
-        const allowedSessionStorageKeys = ['dqx_reload_count'];
+        const allowedSessionStorageKeys = ['dqx_reload_count', 'dqx_test_token'];
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
             const key = sessionStorage.key(i);
             if (!key) continue;
@@ -175,7 +181,7 @@ const DQXTools = {
         const order = savedOrder ? JSON.parse(savedOrder) : null;
         
         const hasValidToken = () => {
-            const token = localStorage.getItem('dqx_test_token');
+            const token = sessionStorage.getItem('dqx_test_token');
             return token && token.length >= 40;
         };
         
@@ -278,11 +284,14 @@ const DQXTools = {
                 e.stopPropagation();
                 netPopover.classList.toggle('show');
             };
+            // 前回のリスナーを破棄してから再登録（showLauncher再呼び出し時の多重登録防止）
+            if (this._netPopoverAbort) this._netPopoverAbort.abort();
+            this._netPopoverAbort = new AbortController();
             document.addEventListener('click', (e) => {
                 if (!netDot.contains(e.target) && !netPopover.contains(e.target)) {
                     netPopover.classList.remove('show');
                 }
-            }, { once: false });
+            }, { signal: this._netPopoverAbort.signal });
         }
 
         const footerInstallLink = document.getElementById('footer-install-link');
@@ -339,7 +348,7 @@ const DQXTools = {
                 if (requiresToken && !isValidTokenNow) {
                     const token = prompt('GitHub APIトークンを入力してください（開発者専用）');
                     if (token && token.length >= 40) {
-                        localStorage.setItem('dqx_test_token', token);
+                        sessionStorage.setItem('dqx_test_token', token);
                         this.showLauncher();
                     }
                     return;
@@ -419,6 +428,15 @@ const DQXTools = {
                         if (chk.checked) {
                             if (!visible.includes(id)) visible.push(id);
                         } else {
+                            // 最後の1件は解除させない
+                            const checkedCount = listContainer.querySelectorAll('input[type="checkbox"]:checked').length;
+                            if (checkedCount === 0) {
+                                chk.checked = true;
+                                if (window.dqxShowToast) {
+                                    window.dqxShowToast('最低1つのツールを表示する必要があります。', { duration: 3000 });
+                                }
+                                return;
+                            }
                             visible = visible.filter(x => x !== id);
                         }
                         // 変更は即時保存
@@ -574,22 +592,23 @@ const DQXTools = {
             const reloadCount = parseInt(sessionStorage.getItem(reloadKey)) || 0;
             if (reloadCount < maxReload) {
                 sessionStorage.setItem(reloadKey, reloadCount + 1);
-                alert(`バージョン不一致が検出されました。ページを再読み込みして更新します。（${reloadCount + 1}/${maxReload}）`);
-                location.reload(true);
+                window.dqxShowToast(`バージョン不一致が検出されました。再読み込みします。（${reloadCount + 1}/${maxReload}）`, { duration: 2500 });
+                setTimeout(() => location.reload(true), 2600);
                 return false;
             } else {
                 sessionStorage.removeItem(reloadKey);
-                alert('バージョン不一致ですが再読み込み上限に達したため続行します。ページを手動で再読み込みしてください。');
+                window.dqxShowToast('バージョン不一致ですが再読み込み上限に達したため続行します。ページを手動で再読み込みしてください。', { duration: 8000 });
             }
         }
         const config = tool.testToolConfig;
         if (!config) return false;
         
-        let token = localStorage.getItem('dqx_test_token');
+        // トークンはセッション中のみ保持（sessionStorage）
+        let token = sessionStorage.getItem('dqx_test_token');
         if (!token) {
             token = prompt(`🔑 ${tool.name}を使用するためのGitHub APIトークンを入力してください（開発者専用）`);
             if (!token) return false;
-            localStorage.setItem('dqx_test_token', token);
+            sessionStorage.setItem('dqx_test_token', token);
         }
         
         const loadingDiv = document.createElement('div');
@@ -629,8 +648,8 @@ const DQXTools = {
         } catch(e) {
             loadingDiv.remove();
             console.error(e);
-            alert(`認証失敗: ${e.message}`);
-            localStorage.removeItem('dqx_test_token');
+            window.dqxShowToast(`認証失敗: ${e.message}`, { duration: 6000 });
+            sessionStorage.removeItem('dqx_test_token');
             this.goHome();
             return false;
         }
@@ -768,6 +787,10 @@ const DQXTools = {
             window.removeEventListener('resize', this.boundResizeHandler);
             this.boundResizeHandler = null;
         }
+        if (this._netPopoverAbort) {
+            this._netPopoverAbort.abort();
+            this._netPopoverAbort = null;
+        }
         const floatBtn = document.getElementById('sidebar-float-toggle');
         if (floatBtn) floatBtn.remove();
     },
@@ -792,12 +815,12 @@ const DQXTools = {
             const reloadCount = parseInt(sessionStorage.getItem(reloadKey)) || 0;
             if (reloadCount < maxReload) {
                 sessionStorage.setItem(reloadKey, reloadCount + 1);
-                alert(`バージョン不一致が検出されました。ページを再読み込みして更新します。（${reloadCount + 1}/${maxReload}）`);
-                location.reload(true);
+                window.dqxShowToast(`バージョン不一致が検出されました。再読み込みします。（${reloadCount + 1}/${maxReload}）`, { duration: 2500 });
+                setTimeout(() => location.reload(true), 2600);
                 return new Promise(() => {}); // ページ再読み込みするので永続的に待つ
             } else {
                 sessionStorage.removeItem(reloadKey);
-                alert('バージョン不一致ですが再読み込み上限に達したため続行します。ページを手動で再読み込みしてください。');
+                window.dqxShowToast('バージョン不一致ですが再読み込み上限に達したため続行します。ページを手動で再読み込みしてください。', { duration: 8000 });
             }
         }
 

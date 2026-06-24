@@ -52,6 +52,7 @@
                     <div class="settings-card">
                         <h3>ℹ️ このツールについて</h3>
                         <p>DQXツールセット - 製作:yuffy_rre</p>
+                        <div id="versionInfo"></div>
                     </div>
                 </div>
             `;
@@ -477,20 +478,56 @@
                 };
             }
 
-            // テストツールトークン削除（追加）
+            // テストツールトークン削除（sessionStorageに移行済み）
             const tokenBtn = document.getElementById('clearTestToken');
             if (tokenBtn) {
                 tokenBtn.onclick = () => {
-                    if (confirm('テストツールの認証トークンを削除します。次回使用時に再入力が必要になります。')) {
-                        localStorage.removeItem('dqx_test_token');
-                        alert('✅ 認証トークンを削除しました');
-                        updateStorageInfo();
+                    sessionStorage.removeItem('dqx_test_token');
+                    if (window.dqxShowToast) {
+                        window.dqxShowToast('認証トークンを削除しました。次回使用時に再入力が必要です。', { variant: 'success', duration: 4000 });
                     }
+                    updateStorageInfo();
                 };
+            }
+
+            // ----- バージョン情報の表示 -----
+            function updateVersionInfo() {
+                const div = document.getElementById('versionInfo');
+                if (!div) return;
+
+                const launcherVer = window.LAUNCHER_VERSION || '—';
+                const htmlVer     = window.HTML_VERSION     || '—';
+                const manifestVer = localStorage.getItem('dqx_manifest_version') || '—';
+                const match = (launcherVer !== '—' && htmlVer !== '—')
+                    ? (launcherVer === htmlVer)
+                    : null;
+
+                const matchBadge = match === null
+                    ? ''
+                    : match
+                        ? '<span style="color:var(--color-success,#2e7d32);font-size:.85em;">✅ 一致</span>'
+                        : '<span style="color:var(--color-error,#c62828);font-size:.85em;">⚠️ 不一致</span>';
+
+                div.innerHTML = `
+                    <table style="width:100%;border-collapse:collapse;font-size:.9em;margin-top:6px;">
+                        <tr>
+                            <td style="padding:3px 6px;color:var(--color-text-muted,#666);">ランチャー</td>
+                            <td style="padding:3px 6px;font-family:monospace;">${launcherVer} ${matchBadge}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:3px 6px;color:var(--color-text-muted,#666);">HTML</td>
+                            <td style="padding:3px 6px;font-family:monospace;">${htmlVer}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:3px 6px;color:var(--color-text-muted,#666);">マニフェスト</td>
+                            <td style="padding:3px 6px;font-family:monospace;">${manifestVer}</td>
+                        </tr>
+                    </table>`;
             }
 
             updateStorageInfo();
             updatePwaStatusInfo();
+            updateVersionInfo();
         },
         
         destroy: function() {}

@@ -752,7 +752,13 @@
   function validateEventData(data) {
     if (!data || typeof data !== 'object') return false;
     if (!Array.isArray(data.events)) return false;
-    return data.events.every(e => typeof e.id !== 'undefined' && typeof e.name === 'string');
+    // id に使用禁止文字が含まれていないか確認（localStorage キー名の安全性を確保）
+    // 禁止: 空白・制御文字・パス区切り(/ \)・クォート(' ")
+    const UNSAFE_ID = /[\s\x00-\x1f\x7f/\\'"]/;
+    return data.events.every(e =>
+      typeof e.id === 'string' && e.id.length > 0 && !UNSAFE_ID.test(e.id) &&
+      typeof e.name === 'string'
+    );
   }
 
   // ===== 詳細テーブル（パニガルム・イベント一覧） =====

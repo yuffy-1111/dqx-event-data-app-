@@ -140,68 +140,46 @@
     </style>
     <script>
         // バージョン文字列は任意形式
-        window.HTML_VERSION = '1.0.9β+';
+        window.HTML_VERSION = '1.1.0β+';
 
         // リロード回数の管理（無限ループ防止）
         window.RELOAD_KEY = 'dqx_reload_count';
         window.MAX_RELOAD = 2;
 
         // ========== ストレージキーのクリーンアップ（毎読み込み時） ==========
+        // 許可キーリストは DQXTools.cleanupStorage() に一本化。
+        // DOMContentLoaded より先に launcher.js（body末尾のsync script）が実行されるため
+        // DQXTools は必ず定義済み。定義済みでない場合のみ自前で実行するフォールバックを持つ。
         function cleanupStorage() {
-            // 許可されたlocalStorage キーのリスト
+            if (typeof DQXTools !== 'undefined' && typeof DQXTools.cleanupStorage === 'function') {
+                DQXTools.cleanupStorage();
+                return;
+            }
+            // フォールバック: launcher.js 未到着時（通常は発生しない）
             const allowedLocalStorageKeys = [
-                'dqx_app_version',
-                'dqx_card_order',
-                'dqx_visible_tools',
-                'dqx_test_token',
-                'dqx_dev_mode',
-                'darkMode',
-                'dqx_craft_last',
-                'dqx_chars_final10',
-                'dqx_disabled_final10',
-                'dqx_hidden_tasks_v1',
-                'dqx_limited_checks_v3',
-                'dqx_lap_notify',
-                'dqx_shopping_cart',
-                'dqx_material_prices',
-                // サイドバーの表示状態を保持するため許可
-                'dqx_sidebar_visible',
-                // 新規ツール追加検知のため許可
-                'dqx_known_tool_ids',
-                // リモート manifest のバージョンを保持
+                'dqx_app_version', 'dqx_card_order', 'dqx_visible_tools',
+                'dqx_dev_mode', 'darkMode', 'dqx_craft_last',
+                'dqx_chars_final10', 'dqx_disabled_final10', 'dqx_hidden_tasks_v1',
+                'dqx_limited_checks_v3', 'dqx_lap_notify', 'dqx_shopping_cart',
+                'dqx_material_prices', 'dqx_sidebar_visible', 'dqx_known_tool_ids',
                 'dqx_manifest_version'
             ];
-
-            // ========== localStorageのクリーンアップ ==========
             for (let i = localStorage.length - 1; i >= 0; i--) {
                 const key = localStorage.key(i);
                 if (!key) continue;
-
-                // 許可リストに含まれている、または'dqx_check_final10_'で始まるキーは保持
-                const isAllowed = allowedLocalStorageKeys.includes(key) || key.startsWith('dqx_check_final10_');
+                const isAllowed = allowedLocalStorageKeys.includes(key)
+                    || key.startsWith('dqx_check_final10_')
+                    || key.startsWith('dqx_limited_checks_v3_');
                 if (!isAllowed) {
-                    try {
-                        localStorage.removeItem(key);
-                        console.log(`[Storage Cleanup] localStorage から削除: ${key}`);
-                    } catch (e) {
-                        console.warn(`[Storage Cleanup] localStorage の削除に失敗: ${key}`, e);
-                    }
+                    try { localStorage.removeItem(key); } catch (e) { /* noop */ }
                 }
             }
-
-            // ========== sessionStorageのクリーンアップ ==========
-            const allowedSessionStorageKeys = ['dqx_reload_count'];
+            const allowedSessionStorageKeys = ['dqx_reload_count', 'dqx_test_token'];
             for (let i = sessionStorage.length - 1; i >= 0; i--) {
                 const key = sessionStorage.key(i);
                 if (!key) continue;
-
                 if (!allowedSessionStorageKeys.includes(key)) {
-                    try {
-                        sessionStorage.removeItem(key);
-                        console.log(`[Storage Cleanup] sessionStorage から削除: ${key}`);
-                    } catch (e) {
-                        console.warn(`[Storage Cleanup] sessionStorage の削除に失敗: ${key}`, e);
-                    }
+                    try { sessionStorage.removeItem(key); } catch (e) { /* noop */ }
                 }
             }
         }
@@ -256,11 +234,12 @@
                 if (window.LAUNCHER_VERSION !== window.HTML_VERSION) {
                     if (reloadCount < window.MAX_RELOAD) {
                         sessionStorage.setItem(window.RELOAD_KEY, reloadCount + 1);
-                        alert(`バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`);
-                        clearDqxCachesAndReload();
+                        // alert()はPWAスタンドアロン等でブロックされるためトースト通知を使用
+                        window.dqxShowToast(`バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`, { duration: 2500 });
+                        setTimeout(() => clearDqxCachesAndReload(), 2600);
                     } else {
                         sessionStorage.removeItem(window.RELOAD_KEY);
-                        alert(`バージョンが一致しません。旧バージョンのツールを読み込みます。\n少し時間をおいて再読み込みしてください。`);
+                        window.dqxShowToast(`バージョンが一致しません。旧バージョンで起動します。\n時間をおいて再読み込みしてください。`, { duration: 8000 });
                         console.warn(`Version mismatch: LAUNCHER=${window.LAUNCHER_VERSION}, HTML=${window.HTML_VERSION} - 上限に達したため継続`);
                     }
                 } else {
@@ -506,17 +485,11 @@
         // ランチャー到着時にバージョンチェックを実行
         window.addEventListener('launcher-ready', function() {
             checkVersionAndReload();
-            if (typeof window.dqxCheckVersion === 'function') {
-                window.dqxCheckVersion();
-            }
         });
         // 既にランチャーが読み込まれている場合は即時チェック
         window.addEventListener('load', function() {
             if (typeof window.LAUNCHER_VERSION !== 'undefined') {
                 checkVersionAndReload();
-                if (typeof window.dqxCheckVersion === 'function') {
-                    window.dqxCheckVersion();
-                }
             }
         });
 
