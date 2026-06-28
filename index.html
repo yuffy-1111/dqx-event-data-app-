@@ -113,77 +113,9 @@
                 width: 92vw;
             }
         }
-
-        /* ========== ロード画面 ========== */
-        #dqx-splash {
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            transition: opacity 0.5s ease;
-        }
-        #dqx-splash img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            position: absolute;
-            inset: 0;
-        }
-        #dqx-splash-content {
-            position: relative;
-            z-index: 1;
-            text-align: center;
-        }
-        #dqx-splash-title {
-            font-size: 22px;
-            font-weight: bold;
-            text-shadow: 0 2px 8px rgba(0,0,0,0.9);
-            margin-bottom: 16px;
-            color: #fff;
-        }
-        #dqx-splash-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: dqx-spin 0.8s linear infinite;
-            margin: 0 auto 12px;
-        }
-        #dqx-splash-msg {
-            font-size: 13px;
-            color: rgba(255,255,255,0.85);
-            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-        }
-        @keyframes dqx-spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ========== カードインジケータ ========== */
-        .card-update-dot {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            display: none;
-            z-index: 5;
-        }
-        .card-update-dot.show { display: block; }
-        .card-update-dot.yellow { background: #f59e0b; }
-        .card-update-dot.orange { background: #f97316; }
-        .tool-card { position: relative; }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.6β+';
+        window.HTML_VERSION = '1.1.5β+';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -452,55 +384,6 @@
                 document.body.appendChild(overlay);
             });
         }
-
-        // ========== ロード画面（毎日6時境界） ==========
-        (function() {
-            const SPLASH_KEY = 'dqx_splash_last';
-            const SPLASH_IMAGES = [
-                './images/dqx_loading.jpg',
-                './images/dqx_loading2.jpg',
-                './images/dqx_loading3.jpg',
-                './images/dqx_loading4.jpg',
-                './images/dqx_loading5.jpg',
-            ];
-
-            /** JST 6時を境にした「有効日」を YYYYMMDD 文字列で返す */
-            function getEffectiveDayKey() {
-                const now = new Date();
-                const jstOffset = 9 * 60;
-                const jst = new Date(now.getTime() + (jstOffset - now.getTimezoneOffset()) * 60000);
-                if (jst.getHours() < 6) jst.setDate(jst.getDate() - 1);
-                return jst.toISOString().slice(0, 10).replace(/-/g, '');
-            }
-
-            function shouldShowSplash() {
-                const last = localStorage.getItem(SPLASH_KEY);
-                return last !== getEffectiveDayKey();
-            }
-
-            function markSplashShown() {
-                localStorage.setItem(SPLASH_KEY, getEffectiveDayKey());
-            }
-
-            window.DQX_SHOW_SPLASH = shouldShowSplash();
-            window.DQX_MARK_SPLASH = markSplashShown;
-            window.DQX_SPLASH_IMAGES = SPLASH_IMAGES;
-            window.DQX_SPLASH_DAY_KEY = getEffectiveDayKey;
-        })();
-
-        // ========== お知らせ取得 ==========
-        window.DQX_NOTICES_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/notices.json';
-        window.DQX_NOTICES = null;
-        window.DQX_NOTICES_PROMISE = null;
-        if (navigator.onLine) {
-            window.DQX_NOTICES_PROMISE = fetch(window.DQX_NOTICES_URL + '?v=' + Date.now(), { cache: 'no-store' })
-                .then(r => r.ok ? r.json() : null)
-                .then(data => { window.DQX_NOTICES = data; return data; })
-                .catch(() => null);
-        }
-
-        // ========== バックグラウンド更新チェック結果格納 ==========
-        window.DQX_BG_CHECK_RESULTS = {};  // toolId -> boolean(hasUpdate)
     </script>
 </head>
 <body>

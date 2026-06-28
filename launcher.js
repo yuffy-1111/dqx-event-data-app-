@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.6β+';
+const APP_VERSION = '1.1.5β+';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -64,13 +64,7 @@ const DQXTools = {
 
         this.darkMode = localStorage.getItem('darkMode') === 'dark';
         this.applyDarkMode();
-
-        // ロード画面（毎日6時境界で初回のみ）
-        if (window.DQX_SHOW_SPLASH) {
-            this._showSplashAndInit();
-        } else {
-            this.showLauncher();
-        }
+        this.showLauncher();
 
         this.boundResizeHandler = () => {
             if (this.currentTool === null) {
@@ -94,9 +88,6 @@ const DQXTools = {
             'dqx_disabled_final10',
             'dqx_hidden_tasks_v1',
             'dqx_limited_checks_v3',
-            'dqx_local_events',
-            'dqx_bg_checker_etag',
-            'dqx_splash_last',
             'dqx_lap_notify',
             'dqx_shopping_cart',
             'dqx_material_prices',
@@ -211,17 +202,10 @@ const DQXTools = {
 
         const cardButtons = toolEntries.map(([id, tool]) => {
             const isDisabled = tool.requiresToken && !isValidToken;
-            const bgResult = window.DQX_BG_CHECK_RESULTS && window.DQX_BG_CHECK_RESULTS[id];
-            const dotClass = bgResult === 'checker'
-                ? 'card-update-dot show orange'
-                : bgResult
-                    ? 'card-update-dot show yellow'
-                    : 'card-update-dot';
             return `
                 <div class="tool-card ${isDisabled ? 'tool-card-disabled' : ''}"
                      data-tool-id="${id}"
                      data-requires-token="${tool.requiresToken || false}">
-                    <div class="${dotClass}"></div>
                     <div class="tool-card-icon">${tool.icon || '🔧'}</div>
                     <div class="tool-card-name">${tool.name}</div>
                     <div class="tool-card-desc">${tool.desc || ''}</div>
@@ -244,15 +228,11 @@ const DQXTools = {
                     ${cardButtons}
                 </div>
                 <div class="home-footer">
-                    <div id="dqx-notices-bar" class="dqx-notices-bar" style="display:none;"></div>
                     <div class="footer-row">
                         <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
                         <button id="footer-reload-btn" class="footer-reload-btn" type="button" title="設定の最新版を確認して更新">↻</button>
                     </div>
-                    <div class="footer-copyright">
-                        <span>© 2026 yuffy_rre</span>
-                        <span class="footer-sqex">© ARMOR PROJECT/BIRD STUDIO/SQUARE ENIX All Rights Reserved.</span>
-                    </div>
+                    <div class="footer-copyright">© 2026 yuffy_rre</div>
                 </div>
             </div>`;
 
@@ -331,43 +311,6 @@ const DQXTools = {
                 }
             });
         }
-
-        // お知らせ描画
-        this._renderNotices();
-    },
-
-    _renderNotices: function() {
-        const bar = document.getElementById('dqx-notices-bar');
-        if (!bar) return;
-
-        const renderData = (data) => {
-            if (!data || !Array.isArray(data.notices) || data.notices.length === 0) return;
-            const now = new Date();
-            const active = data.notices.filter(n => {
-                if (!n.startDate && !n.endDate) return true;
-                const start = n.startDate ? new Date(n.startDate) : null;
-                const end   = n.endDate   ? new Date(n.endDate)   : null;
-                return (!start || now >= start) && (!end || now <= end);
-            });
-            if (active.length === 0) return;
-
-            bar.style.display = 'block';
-            bar.innerHTML = active.map(n => `
-                <div class="dqx-notice-item ${n.type || 'info'}">
-                    <span class="dqx-notice-icon">${
-                        n.type === 'warn' ? '⚠️' : n.type === 'event' ? '🎉' : 'ℹ️'
-                    }</span>
-                    <span class="dqx-notice-text">${n.message.replace(/</g,'&lt;')}</span>
-                    ${n.link ? `<a href="${n.link}" target="_blank" class="dqx-notice-link">詳細</a>` : ''}
-                </div>
-            `).join('');
-        };
-
-        if (window.DQX_NOTICES) {
-            renderData(window.DQX_NOTICES);
-        } else if (window.DQX_NOTICES_PROMISE) {
-            window.DQX_NOTICES_PROMISE.then(data => renderData(data));
-        }
     },
 
     // トークン入力を専用UIで行う（prompt() は PWA standalone で動作しない環境がある）
@@ -444,10 +387,7 @@ const DQXTools = {
             try { return stored ? JSON.parse(stored) : null; } catch (e) { return null; }
         };
         let visible = loadVisible();
-        // hideInMenu かつ testToolConfig を持たないツール（アプリの使い方等）はカード編集対象外
-        const allIds = Object.keys(this.tools)
-            .filter((id) => !(this.tools[id].hideInMenu && !this.tools[id].testToolConfig))
-            .sort();
+        const allIds = Object.keys(this.tools).sort();
 
         const renderList = () => {
             listContainer.innerHTML = '';
@@ -758,88 +698,6 @@ const DQXTools = {
                 window[g].destroy();
             }
         });
-    },
-
-    // ========== ロード画面 ==========
-    _showSplashAndInit: function() {
-        const images = window.DQX_SPLASH_IMAGES || ['./images/dqx_loading.jpg'];
-        const imgSrc = images[Math.floor(Math.random() * images.length)];
-
-        const splash = document.createElement('div');
-        splash.id = 'dqx-splash';
-        splash.innerHTML = `
-            <img src="${imgSrc}" alt="Loading" draggable="false">
-            <div id="dqx-splash-content">
-                <div id="dqx-splash-spinner"></div>
-                <div id="dqx-splash-title">🎮 DQXツール</div>
-                <div id="dqx-splash-msg">起動中...</div>
-            </div>
-        `;
-        document.body.appendChild(splash);
-
-        // バックグラウンドでツール更新チェック
-        const bgCheck = this._bgCheckTools();
-
-        // 最低1.2秒表示 & バックグラウンドチェック完了まで待機
-        const minWait = new Promise(r => setTimeout(r, 1200));
-
-        Promise.all([minWait, bgCheck]).then(() => {
-            if (window.DQX_MARK_SPLASH) window.DQX_MARK_SPLASH();
-            splash.style.opacity = '0';
-            setTimeout(() => {
-                splash.remove();
-                this.showLauncher();
-            }, 500);
-        });
-    },
-
-    // バックグラウンドでツールURLのHEADリクエストを出して更新確認
-    _bgCheckTools: async function() {
-        if (!navigator.onLine) return;
-        try {
-            // チェッカーイベントデータの確認（checker.json）
-            const checkerJsonUrl = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
-            const storedCheckerEtag = localStorage.getItem('dqx_bg_checker_etag');
-            try {
-                const res = await fetch(checkerJsonUrl + '?v=' + Date.now(), {
-                    method: 'HEAD', cache: 'no-store'
-                });
-                const etag = res.headers.get('etag') || res.headers.get('last-modified') || '';
-                if (etag && storedCheckerEtag && etag !== storedCheckerEtag) {
-                    // 変更あり → 日課以外かどうか確認するためにボディ取得
-                    const dataRes = await fetch(checkerJsonUrl + '?v=' + Date.now(), { cache: 'no-store' });
-                    if (dataRes.ok) {
-                        const data = await dataRes.json();
-                        const hasDailyOnly = data && Array.isArray(data.events)
-                            && data.events.some(e => e.resetType !== 'daily');
-                        window.DQX_BG_CHECK_RESULTS['Checker'] = hasDailyOnly ? 'checker' : true;
-                    } else {
-                        window.DQX_BG_CHECK_RESULTS['Checker'] = true;
-                    }
-                }
-                if (etag) localStorage.setItem('dqx_bg_checker_etag', etag);
-            } catch(e) { /* noop */ }
-
-            // tools-manifest のバージョン確認（認証不要ツールのみ）
-            try {
-                const manifestRes = await fetch('./tools-manifest.json?v=' + Date.now(), { cache: 'no-store' });
-                if (manifestRes.ok) {
-                    const manifest = await manifestRes.json();
-                    const storedVer = localStorage.getItem('dqx_manifest_version');
-                    const remoteVer = manifest && manifest.launcherVersion;
-                    if (remoteVer && storedVer && remoteVer !== storedVer) {
-                        // ランチャー更新あり：すべての通常ツールにインジケータ
-                        (manifest.tools || []).forEach(t => {
-                            if (!t.requiresToken && !t.hideInMenu) {
-                                if (!window.DQX_BG_CHECK_RESULTS[t.id]) {
-                                    window.DQX_BG_CHECK_RESULTS[t.id] = true;
-                                }
-                            }
-                        });
-                    }
-                }
-            } catch(e) { /* noop */ }
-        } catch(e) { /* noop */ }
     },
 
     destroy: function() {

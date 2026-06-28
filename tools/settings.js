@@ -17,6 +17,7 @@
                         <div class="button-group">
                             <button id="clearAllCache"    class="btn-danger">全キャッシュを削除</button>
                             <button id="clearCheckerCache" class="btn-warning">チェックデータ削除</button>
+                            <button id="clearTestToken"   class="btn-info">認証トークン削除</button>
                         </div>
                         <p class="settings-note">
                             ※ 削除すると復元できません。呪文書き出しでバックアップすることをおすすめします。
@@ -273,6 +274,18 @@
                     keysToRemove.forEach((key) => localStorage.removeItem(key));
                     updateStorageInfo();
                     alert(`✅ ${keysToRemove.length}個のチェッカーデータを削除しました`);
+                };
+            }
+
+            // ----- 認証トークン削除 -----
+            const tokenBtn = document.getElementById('clearTestToken');
+            if (tokenBtn) {
+                tokenBtn.onclick = () => {
+                    sessionStorage.removeItem('dqx_test_token');
+                    if (window.dqxShowToast) {
+                        window.dqxShowToast('認証トークンを削除しました。次回使用時に再入力が必要です。', { variant: 'success', duration: 4000 });
+                    }
+                    updateStorageInfo();
                 };
             }
 
