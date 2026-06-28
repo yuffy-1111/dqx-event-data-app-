@@ -8,6 +8,7 @@
   const STORAGE_KEY_DISABLED      = 'dqx_disabled_final10';
   const STORAGE_KEY_HIDDEN        = 'dqx_hidden_tasks_v1';
   const STORAGE_KEY_LIM_CHECKS    = 'dqx_limited_checks_v3';
+  const STORAGE_KEY_LOCAL_EVENTS  = 'dqx_local_events';
 
   const EVENTS_URL  = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
   const RESET_HOUR  = 6; // JST 毎日6時リセット
@@ -71,6 +72,210 @@
   ];
 
   // ===== 共通ユーティリティ =====
+
+  /**
+   * ミニトースト通知（alert/prompt の代替）
+   * launcher.js の dqxShowToast() が利用可能な場合はそちらに委譲し、
+   * checker.js 単体でも動作するよう自前 DOM で完結するフォールバックを持つ。
+   *
+   * @param {string}  message  表示するテキスト
+   * @param {'info'|'success'|'error'} [variant='info']
+   * @param {number}  [duration=4000]  ms。0 を渡すと自動非表示しない
+   */
+  function showToast(message, variant, duration) {
+    variant  = variant  || 'info';
+    duration = (duration === undefined) ? 4000 : duration;
+
+    // launcher.js の共通トーストが使える環境ではそちらを優先
+    if (typeof window.dqxShowToast === 'function') {
+      window.dqxShowToast(message, { variant: variant === 'error' ? 'info' : variant, duration: duration });
+      return;
+    }
+
+    // ── フォールバック: checker.js 専用トースト ──
+    const TOAST_ID = 'checker-mini-toast';
+    const prev = document.getElementById(TOAST_ID);
+    if (prev) prev.remove();
+
+    const BG = { info: '#223a70', success: '#0a6e4f', error: '#b91c1c' };
+    const ICON = { info: 'ℹ️', success: '✅', error: '⚠️' };
+
+    const toast = document.createElement('div');
+    toast.id = TOAST_ID;
+    // textContent でメッセージを設定するためアイコンだけ innerHTML で組み立てる
+    const icon = document.createElement('span');
+    icon.textContent = ICON[variant] || ICON.info;
+    icon.style.cssText = 'flex-shrink:0;font-size:16px;';
+
+    const body = document.createElement('span');
+    body.textContent = message;
+    body.style.cssText = 'flex:1;font-size:13px;line-height:1.5;word-break:break-word;';
+
+    const close = document.createElement('button');
+    close.textContent = '✕';
+    close.setAttribute('aria-label', '閉じる');
+    close.style.cssText = [
+      'background:rgba(255,255,255,0.2);border:none;color:#fff;',
+      'border-radius:50%;width:20px;height:20px;flex-shrink:0;',
+      'cursor:pointer;font-size:12px;line-height:1;padding:0;'
+    ].join('');
+    close.onclick = hide;
+
+    toast.style.cssText = [
+      'position:fixed;left:50%;bottom:24px;',
+      'transform:translateX(-50%) translateY(120%);',
+      'max-width:92vw;width:360px;',
+      `background:${BG[variant] || BG.info};`,
+      'color:#fff;border-radius:14px;padding:12px 14px;',
+      'box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:10500;',
+      'display:flex;align-items:flex-start;gap:10px;',
+      'transition:transform 0.3s ease;pointer-events:none;'
+    ].join('');
+
+    toast.appendChild(icon);
+    toast.appendChild(body);
+    toast.appendChild(close);
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      toast.style.pointerEvents = 'auto';
+    });
+
+    function hide() {
+      toast.style.transform = 'translateX(-50%) translateY(120%)';
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, 320);
+    }
+    if (duration > 0) setTimeout(hide, duration);
+  }
+
+  /**
+   * 呪文コピー失敗時のインラインフォールバック表示
+   * クリップボード API が使えない環境でも手動コピーできるよう
+   * 呪文テキストをトースト下部のテキストエリアに展開する。
+   *
+   * @param {string} spell  コピーできなかった呪文文字列
+   */
+  function showCopyFallback(spell) {
+    const FALLBACK_ID = 'checker-copy-fallback';
+    const prev = document.getElementById(FALLBACK_ID);
+    if (prev) prev.remove();
+
+    const wrapper = document.createElement('div');
+    wrapper.id = FALLBACK_ID;
+    wrapper.style.cssText = [
+      'position:fixed;left:50%;bottom:100px;',
+      'transform:translateX(-50%);',
+      'max-width:92vw;width:400px;',
+      'background:#1e293b;color:#fff;border-radius:14px;',
+      'padding:14px;box-shadow:0 8px 24px rgba(0,0,0,0.4);',
+      'z-index:10501;font-size:13px;'
+    ].join('');
+
+    const label = document.createElement('p');
+    label.textContent = 'コピーに失敗しました。以下を手動でコピーしてください：';
+    label.style.cssText = 'margin:0 0 8px;';
+
+    const ta = document.createElement('textarea');
+    ta.value = spell;
+    ta.readOnly = true;
+    ta.style.cssText = [
+      'width:100%;height:80px;font-size:11px;',
+      'background:#0f172a;color:#e5e7eb;border:1px solid #475569;',
+      'border-radius:8px;padding:6px;resize:none;'
+    ].join('');
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '閉じる';
+    closeBtn.style.cssText = [
+      'margin-top:8px;width:100%;padding:6px;',
+      'background:#374151;color:#fff;border:none;',
+      'border-radius:8px;cursor:pointer;font-size:13px;'
+    ].join('');
+    closeBtn.onclick = () => wrapper.remove();
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(ta);
+    wrapper.appendChild(closeBtn);
+    document.body.appendChild(wrapper);
+
+    // テキストエリアを自動選択して即コピーしやすく
+    setTimeout(() => ta.select(), 50);
+  }
+
+  /**
+   * 呪文インポート用インラインダイアログ
+   * prompt() の代替。既存の container 内ではなく body 直下に固定オーバーレイとして表示。
+   *
+   * @param {function(string):void} onConfirm  入力確定時のコールバック
+   */
+  function showImportPrompt(onConfirm) {
+    const DIALOG_ID = 'checker-import-dialog';
+    const prev = document.getElementById(DIALOG_ID);
+    if (prev) prev.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = DIALOG_ID;
+    overlay.style.cssText = [
+      'position:fixed;inset:0;background:rgba(0,0,0,0.55);',
+      'z-index:10600;display:flex;align-items:center;justify-content:center;padding:16px;'
+    ].join('');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#1e293b;color:#fff;border-radius:16px;',
+      'padding:20px;width:100%;max-width:420px;',
+      'box-shadow:0 16px 40px rgba(0,0,0,0.5);font-size:14px;'
+    ].join('');
+
+    const title = document.createElement('p');
+    title.textContent = '呪文を貼り付けてください（X または Y で始まる文字列）';
+    title.style.cssText = 'margin:0 0 12px;font-weight:bold;line-height:1.5;';
+
+    const ta = document.createElement('textarea');
+    ta.placeholder = 'Y|キャラ名|...';
+    ta.style.cssText = [
+      'width:100%;height:100px;font-size:12px;',
+      'background:#0f172a;color:#e5e7eb;border:1px solid #475569;',
+      'border-radius:8px;padding:8px;resize:none;'
+    ].join('');
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;margin-top:12px;';
+
+    const okBtn = document.createElement('button');
+    okBtn.textContent = '読み込む';
+    okBtn.style.cssText = [
+      'flex:1;padding:8px;background:#0066cc;color:#fff;',
+      'border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:bold;'
+    ].join('');
+    okBtn.onclick = () => {
+      const val = ta.value.trim();
+      overlay.remove();
+      if (val) onConfirm(val);
+    };
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'キャンセル';
+    cancelBtn.style.cssText = [
+      'flex:1;padding:8px;background:#374151;color:#fff;',
+      'border:none;border-radius:10px;cursor:pointer;font-size:14px;'
+    ].join('');
+    cancelBtn.onclick = () => overlay.remove();
+
+    // オーバーレイ背景クリックでキャンセル
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    btnRow.appendChild(okBtn);
+    btnRow.appendChild(cancelBtn);
+    box.appendChild(title);
+    box.appendChild(ta);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => ta.focus(), 50);
+  }
 
   /** HTMLエスケープ */
   function escapeHtml(str) {
@@ -472,7 +677,7 @@
     const nameInput  = document.getElementById('newCharName');
     const colorInput = document.getElementById('newCharColor');
     const name = nameInput.value.trim();
-    if (!name) { alert('キャラ名を入力してください'); return; }
+    if (!name) { showToast('キャラ名を入力してください', 'error'); return; }
     characters.push({ id: nextCharId++, name, color: colorInput.value });
     saveCharacters();
     nameInput.value = '';
@@ -588,7 +793,7 @@
 
   function exportSpell() {
     if (characters.length === 0) {
-      alert('キャラクターが登録されていません');
+      showToast('キャラクターが登録されていません', 'error');
       return;
     }
 
@@ -618,19 +823,19 @@
 
     const spell = records.join(SPELL_RECORD_SEP);
     navigator.clipboard.writeText(spell)
-      .then(() => alert(`✓ 呪文をコピーしました！\n${spell.length}文字`))
-      .catch(() => prompt('コピーに失敗しました。手動でコピーしてください:', spell));
+      .then(() => showToast(`✓ 呪文をコピーしました！（${spell.length}文字）`, 'success'))
+      .catch(() => showCopyFallback(spell));
   }
 
   // ===== 呪文の読み込み（Y/X 両対応）=====
 
   function importSpell(spell) {
     spell = (spell || '').trim();
-    if (!spell) { alert('呪文を入力してください'); return; }
+    if (!spell) { showToast('呪文を入力してください', 'error'); return; }
 
     const marker = spell.charAt(0);
     if (marker !== SPELL_MARKER_CURRENT && marker !== SPELL_MARKER_LEGACY) {
-      alert('不明な形式の呪文です（Y または X で始まる必要があります）');
+      showToast('不明な形式の呪文です（Y または X で始まる必要があります）', 'error');
       return;
     }
 
@@ -652,16 +857,16 @@
       // マーカーと区切りを除去して各フィールドに分割
       const parts = rec.slice(2).split(SPELL_FIELD_SEP);
       if (parts.length < 4) {
-        alert(`レコード ${recIdx + 1} のフィールド数が不足しています`);
+        showToast(`レコード ${recIdx + 1} のフィールド数が不足しています`, 'error');
         continue;
       }
 
       const [charName, colorHex, checkB64, lockB64] = parts;
       const checkBits = base64ToBits(checkB64, TASK_KEY_ORDER.length);
-      if (!checkBits) { alert(`レコード ${recIdx + 1} のチェックデータ解析に失敗`); continue; }
+      if (!checkBits) { showToast(`レコード ${recIdx + 1} のチェックデータ解析に失敗`, 'error'); continue; }
 
       const lockBits = base64ToBits(lockB64, TASK_KEY_ORDER.length);
-      if (!lockBits)  { alert(`レコード ${recIdx + 1} のロックデータ解析に失敗`);  continue; }
+      if (!lockBits)  { showToast(`レコード ${recIdx + 1} のロックデータ解析に失敗`, 'error');  continue; }
 
       const newId = nextCharId++;
       characters.push({ id: newId, name: charName, color: '#' + colorHex });
@@ -674,15 +879,173 @@
       addedCount++;
     }
 
-    if (addedCount === 0) { alert('有効なデータがありませんでした'); return; }
+    if (addedCount === 0) { showToast('有効なデータがありませんでした', 'error'); return; }
     saveCharacters();
-    alert(`✓ ${addedCount}人分のデータを読み込みました！`);
+    showToast(`✓ ${addedCount}人分のデータを読み込みました！`, 'success');
     renderAll();
   }
 
   function showImportDialog() {
-    const spell = prompt('呪文を貼り付けてください\n（X または Y で始まる文字列）');
-    if (spell) importSpell(spell);
+    showImportPrompt(function(spell) { importSpell(spell); });
+  }
+
+  // ===== ローカルイベント管理 =====
+
+  function loadLocalEvents() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_LOCAL_EVENTS);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveLocalEvents(events) {
+    localStorage.setItem(STORAGE_KEY_LOCAL_EVENTS, JSON.stringify(events));
+  }
+
+  /** ローカルイベント追加ダイアログを表示 */
+  function showAddLocalEventDialog() {
+    if (document.getElementById('local-event-modal')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'local-event-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:30000;';
+
+    const dialog = document.createElement('div');
+    const isDark = document.body.classList.contains('dark-mode');
+    dialog.style.cssText = `background:${isDark ? '#1e293b' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};padding:20px;border-radius:12px;width:90%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.3);`;
+    dialog.innerHTML = `
+      <h3 style="margin:0 0 14px;color:${isDark ? '#60a5fa' : '#0066cc'};font-size:15px;">➕ イベント手動追加</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <label style="font-size:12px;color:${isDark ? '#94a3b8' : '#666'};">イベント名 *</label>
+          <input id="le-name" type="text" maxlength="40" placeholder="例: ○○フィーバー"
+            style="width:100%;padding:8px;border:1px solid ${isDark ? '#475569' : '#ccc'};border-radius:8px;font-size:13px;background:${isDark ? '#0f172a' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};box-sizing:border-box;margin-top:4px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:12px;color:${isDark ? '#94a3b8' : '#666'};">開始日 *</label>
+            <input id="le-start" type="date"
+              style="width:100%;padding:8px;border:1px solid ${isDark ? '#475569' : '#ccc'};border-radius:8px;font-size:13px;background:${isDark ? '#0f172a' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};box-sizing:border-box;margin-top:4px;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px;color:${isDark ? '#94a3b8' : '#666'};">終了日 *</label>
+            <input id="le-end" type="date"
+              style="width:100%;padding:8px;border:1px solid ${isDark ? '#475569' : '#ccc'};border-radius:8px;font-size:13px;background:${isDark ? '#0f172a' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};box-sizing:border-box;margin-top:4px;">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:12px;color:${isDark ? '#94a3b8' : '#666'};">種別</label>
+          <select id="le-reset" style="width:100%;padding:8px;border:1px solid ${isDark ? '#475569' : '#ccc'};border-radius:8px;font-size:13px;background:${isDark ? '#0f172a' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};box-sizing:border-box;margin-top:4px;">
+            <option value="daily">毎日リセット</option>
+            <option value="once">期間中1回</option>
+            <option value="weekly">毎週リセット</option>
+          </select>
+        </div>
+        <div id="le-error" style="color:#ef4444;font-size:12px;display:none;"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+        <button id="le-cancel" style="padding:8px 16px;border:1px solid ${isDark ? '#475569' : '#ccc'};border-radius:8px;background:${isDark ? '#0f172a' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};cursor:pointer;font-size:13px;">キャンセル</button>
+        <button id="le-add" style="padding:8px 16px;background:#0066cc;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">追加</button>
+      </div>
+    `;
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    dialog.querySelector('#le-cancel').onclick = () => overlay.remove();
+
+    const nameInput  = dialog.querySelector('#le-name');
+    const startInput = dialog.querySelector('#le-start');
+    const endInput   = dialog.querySelector('#le-end');
+    const resetSel   = dialog.querySelector('#le-reset');
+    const errDiv     = dialog.querySelector('#le-error');
+
+    // 今日の日付をデフォルトに
+    const today = new Date();
+    const toDateStr = (d) => d.toISOString().slice(0,10);
+    startInput.value = toDateStr(today);
+    const endDefault = new Date(today); endDefault.setDate(endDefault.getDate() + 7);
+    endInput.value = toDateStr(endDefault);
+
+    dialog.querySelector('#le-add').onclick = () => {
+      const name  = nameInput.value.trim();
+      const start = startInput.value;
+      const end   = endInput.value;
+      const reset = resetSel.value;
+
+      if (!name) { errDiv.textContent = 'イベント名を入力してください'; errDiv.style.display = ''; return; }
+      if (!start || !end) { errDiv.textContent = '日付を入力してください'; errDiv.style.display = ''; return; }
+      if (start > end) { errDiv.textContent = '終了日は開始日以降にしてください'; errDiv.style.display = ''; return; }
+
+      const local = loadLocalEvents();
+      const id = 'local_' + Date.now();
+      local.push({
+        id,
+        name,
+        resetType: reset,
+        startDateTime: start + 'T06:00:00+09:00',
+        endDateTime:   end   + 'T05:59:00+09:00',
+        isLocal: true,
+      });
+      saveLocalEvents(local);
+      overlay.remove();
+      showToast('イベントを追加しました: ' + name, 'success');
+      renderAll();
+    };
+
+    nameInput.focus();
+  }
+
+  /** ローカルイベント管理ダイアログを表示（一覧・削除） */
+  function showManageLocalEventsDialog() {
+    if (document.getElementById('local-event-list-modal')) return;
+
+    const events = loadLocalEvents();
+    if (events.length === 0) {
+      showToast('手動追加したイベントはありません', 'info');
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'local-event-list-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:30000;';
+
+    const isDark = document.body.classList.contains('dark-mode');
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `background:${isDark ? '#1e293b' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};padding:20px;border-radius:12px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);`;
+
+    const renderDialogContent = () => {
+      const current = loadLocalEvents();
+      dialog.innerHTML = `
+        <h3 style="margin:0 0 12px;color:${isDark ? '#60a5fa' : '#0066cc'};font-size:15px;">📋 手動追加イベント一覧</h3>
+        ${current.length === 0 ? '<p style="color:#888;font-size:13px;">なし</p>' : current.map(ev => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid ${isDark ? '#334155' : '#eee'};">
+            <div style="flex:1;font-size:13px;">
+              <div style="font-weight:600;">${escapeHtml(ev.name)}</div>
+              <div style="font-size:11px;color:${isDark ? '#94a3b8' : '#888'};">${getEventPeriodStr(ev)} (${ev.resetType === 'daily' ? '毎日' : ev.resetType === 'weekly' ? '毎週' : '1回'})</div>
+            </div>
+            <button data-id="${ev.id}" class="le-del-btn" style="padding:4px 10px;background:#dc3545;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">削除</button>
+          </div>
+        `).join('')}
+        <div style="margin-top:14px;text-align:right;">
+          <button id="le-list-close" style="padding:8px 16px;border:1px solid ${isDark ? '#475569' : '#ccc'};border-radius:8px;background:${isDark ? '#0f172a' : '#fff'};color:${isDark ? '#e2e8f0' : '#333'};cursor:pointer;font-size:13px;">閉じる</button>
+        </div>
+      `;
+      dialog.querySelector('#le-list-close').onclick = () => { overlay.remove(); renderAll(); };
+      dialog.querySelectorAll('.le-del-btn').forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          const updated = loadLocalEvents().filter(e => e.id !== id);
+          saveLocalEvents(updated);
+          renderDialogContent();
+        };
+      });
+    };
+
+    renderDialogContent();
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); renderAll(); } });
   }
 
   // ===== イベント =====
@@ -907,17 +1270,22 @@
   }
 
   async function renderEventRows(leftTbody, rightTbody, targetDate) {
-    let events = [];
+    let remoteEvents = [];
     try {
       const res = await fetch(EVENTS_URL, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!validateEventData(data)) return;
-      events = data.events.filter(e => isEventActive(e, targetDate));
+      if (validateEventData(data)) {
+        remoteEvents = data.events.filter(e => isEventActive(e, targetDate));
+      }
     } catch (e) {
       console.error('イベント取得失敗:', e);
-      return;
     }
+
+    // ローカル（手動追加）イベントをマージ
+    const localEvents = loadLocalEvents().filter(e => isEventActive(e, targetDate));
+    const events = [...remoteEvents, ...localEvents];
+
     if (!events.length) return;
 
     const dailyEvents = events.filter(e => e.resetType === 'daily');
@@ -1162,6 +1530,8 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 .toolbar button { background: #eef2ff; border: none; padding: 5px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 500; cursor: pointer; }
 .add-btn    { background: #0066cc !important; color: white !important; }
 .edit-btn   { background: #f59e0b !important; color: white !important; }
+.local-event-btn        { background: #0ea5e9 !important; color: white !important; }
+.local-event-manage-btn { background: #64748b !important; color: white !important; min-width:32px; }
 .edit-mode-active { background: #10b981 !important; color: white !important; }
 .export-btn { background: #10b981 !important; color: white !important; }
 .import-btn { background: #8b5cf6 !important; color: white !important; }
@@ -1239,6 +1609,8 @@ body.dark-mode .toolbar input[type="color"] { background: #374151; border-color:
 body.dark-mode .toolbar button { background: #374151; color: #e5e7eb; }
 body.dark-mode .add-btn    { background: #3399ff !important; }
 body.dark-mode .edit-btn   { background: #f59e0b !important; }
+body.dark-mode .local-event-btn        { background: #0284c7 !important; }
+body.dark-mode .local-event-manage-btn { background: #475569 !important; }
 body.dark-mode .edit-mode-active { background: #10b981 !important; }
 body.dark-mode .export-btn { background: #059669 !important; }
 body.dark-mode .import-btn { background: #7c3aed !important; }
@@ -1280,10 +1652,12 @@ body.dark-mode #rightPanel   { background: #111827; }
   <div id="toolbar" class="toolbar">
     <input id="newCharName"  type="text"  placeholder="キャラ名" />
     <input id="newCharColor" type="color" value="#d4eaf3" />
-    <button id="addCharBtn"   class="add-btn">＋ 追加</button>
-    <button id="editModeBtn"  class="edit-btn">✏️ 編集モード</button>
-    <button id="exportBtn"    class="export-btn">📋 書き出し</button>
-    <button id="importBtn"    class="import-btn">📥 読み込み</button>
+    <button id="addCharBtn"       class="add-btn">＋ 追加</button>
+    <button id="editModeBtn"      class="edit-btn">✏️ 編集モード</button>
+    <button id="exportBtn"        class="export-btn">📋 書き出し</button>
+    <button id="importBtn"        class="import-btn">📥 読み込み</button>
+    <button id="addLocalEventBtn" class="local-event-btn" title="イベント手動追加">＋ イベント追加</button>
+    <button id="manageLocalEventsBtn" class="local-event-manage-btn" title="手動追加イベント管理">📋</button>
   </div>
   <div id="todayInfo" class="today-card"></div>
   <div id="tableWrapper">
@@ -1312,6 +1686,8 @@ body.dark-mode #rightPanel   { background: #111827; }
       document.getElementById('editModeBtn').addEventListener('click', toggleEditMode);
       document.getElementById('exportBtn').addEventListener('click', exportSpell);
       document.getElementById('importBtn').addEventListener('click', showImportDialog);
+      document.getElementById('addLocalEventBtn').addEventListener('click', showAddLocalEventDialog);
+      document.getElementById('manageLocalEventsBtn').addEventListener('click', showManageLocalEventsDialog);
 
       window.addEventListener('resize', syncRowHeights);
 

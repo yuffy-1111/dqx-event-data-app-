@@ -92,7 +92,6 @@
             const tabs = container.querySelectorAll('.install-tab');
             const panels = container.querySelectorAll('.install-panel');
 
-            // タブのクリックで切り替え
             tabs.forEach(tab => {
                 tab.onclick = () => {
                     tabs.forEach(t => t.classList.remove('active'));
@@ -109,7 +108,6 @@
                 };
             });
 
-            // 端末判定で初期タブを選択（click()ではなく直接状態を設定）
             const ua = navigator.userAgent;
             const isIOS = /iPhone|iPad|iPod/.test(ua) && !window.MSStream;
             const isAndroid = /Android/.test(ua);

@@ -1,0 +1,12 @@
+{
+  "_comment": "お知らせデータ。yuffy-1111/dqx-event-data リポジトリの notices.json で管理。",
+  "notices": [
+    {
+      "id": "sample-001",
+      "type": "info",
+      "message": "DQXツール v1.1.5β+ をリリースしました。お知らせ機能などが追加されています。",
+      "startDate": "2026-06-01T00:00:00+09:00",
+      "endDate": "2026-07-31T23:59:59+09:00"
+    }
+  ]
+}

@@ -9,7 +9,7 @@
     <title>ユッフィーのDQXツール</title>
     <link rel="manifest" href="./manifest.webmanifest">
     <meta name="theme-color" content="#0066cc">
-    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-maskable-192.png">
     <link rel="stylesheet" href="launcher.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
@@ -52,31 +52,7 @@
                 padding-bottom: 120px !important;
             }
         }
-        .maintenance-overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-        .maintenance-text {
-            font-size: 3rem;
-            font-weight: bold;
-            color: white;
-            text-align: center;
-            padding: 20px;
-            background: #223a70;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        /* ----- 起動時オンラインチェック用トースト通知 -----
-           画面を占有せず、操作をブロックしない控えめな通知。
-           環境（iOSのstandaloneモード等）によるブロックを避けるため
-           alertやconfirmは使わず、自前のDOM要素のみで完結させる。 */
+        /* トースト通知 */
         #dqx-update-toast {
             position: fixed;
             left: 50%;
@@ -137,57 +113,82 @@
                 width: 92vw;
             }
         }
-    </style>
-    <script>
-        // バージョン文字列は任意形式
-        window.HTML_VERSION = '1.1.5β+';
 
-        // リロード回数の管理（無限ループ防止）
-        window.RELOAD_KEY = 'dqx_reload_count';
-        window.MAX_RELOAD = 2;
-
-        // ========== ストレージキーのクリーンアップ（毎読み込み時） ==========
-        // 許可キーリストは DQXTools.cleanupStorage() に一本化。
-        // DOMContentLoaded より先に launcher.js（body末尾のsync script）が実行されるため
-        // DQXTools は必ず定義済み。定義済みでない場合のみ自前で実行するフォールバックを持つ。
-        function cleanupStorage() {
-            if (typeof DQXTools !== 'undefined' && typeof DQXTools.cleanupStorage === 'function') {
-                DQXTools.cleanupStorage();
-                return;
-            }
-            // フォールバック: launcher.js 未到着時（通常は発生しない）
-            const allowedLocalStorageKeys = [
-                'dqx_app_version', 'dqx_card_order', 'dqx_visible_tools',
-                'dqx_dev_mode', 'darkMode', 'dqx_craft_last',
-                'dqx_chars_final10', 'dqx_disabled_final10', 'dqx_hidden_tasks_v1',
-                'dqx_limited_checks_v3', 'dqx_lap_notify', 'dqx_shopping_cart',
-                'dqx_material_prices', 'dqx_sidebar_visible', 'dqx_known_tool_ids',
-                'dqx_manifest_version'
-            ];
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-                const key = localStorage.key(i);
-                if (!key) continue;
-                const isAllowed = allowedLocalStorageKeys.includes(key)
-                    || key.startsWith('dqx_check_final10_')
-                    || key.startsWith('dqx_limited_checks_v3_');
-                if (!isAllowed) {
-                    try { localStorage.removeItem(key); } catch (e) { /* noop */ }
-                }
-            }
-            const allowedSessionStorageKeys = ['dqx_reload_count', 'dqx_test_token'];
-            for (let i = sessionStorage.length - 1; i >= 0; i--) {
-                const key = sessionStorage.key(i);
-                if (!key) continue;
-                if (!allowedSessionStorageKeys.includes(key)) {
-                    try { sessionStorage.removeItem(key); } catch (e) { /* noop */ }
-                }
-            }
+        /* ========== ロード画面 ========== */
+        #dqx-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            transition: opacity 0.5s ease;
+        }
+        #dqx-splash img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            inset: 0;
+        }
+        #dqx-splash-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        #dqx-splash-title {
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+            margin-bottom: 16px;
+            color: #fff;
+        }
+        #dqx-splash-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: dqx-spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        #dqx-splash-msg {
+            font-size: 13px;
+            color: rgba(255,255,255,0.85);
+            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+        }
+        @keyframes dqx-spin {
+            to { transform: rotate(360deg); }
         }
 
-        // ページ読み込み時にクリーンアップを実行
-        document.addEventListener('DOMContentLoaded', cleanupStorage);
+        /* ========== カードインジケータ ========== */
+        .card-update-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            display: none;
+            z-index: 5;
+        }
+        .card-update-dot.show { display: block; }
+        .card-update-dot.yellow { background: #f59e0b; }
+        .card-update-dot.orange { background: #f97316; }
+        .tool-card { position: relative; }
+    </style>
+    <script>
+        window.HTML_VERSION = '1.1.5β+';
 
-        // Pull to Refresh（スワイプ引っ張り再読み込み）禁止
+        window.RELOAD_KEY  = 'dqx_reload_count';
+        window.MAX_RELOAD  = 2;
+
+        // ========== Pull to Refresh 禁止 ==========
         document.addEventListener('DOMContentLoaded', function() {
             let touchStartY = 0;
             document.addEventListener('touchstart', (e) => {
@@ -200,7 +201,7 @@
                 }
             }, { passive: false });
         });
-        
+
         async function clearDqxCachesAndReload() {
             if ('caches' in window) {
                 try {
@@ -217,9 +218,7 @@
             if ('serviceWorker' in navigator) {
                 try {
                     const reg = await navigator.serviceWorker.getRegistration();
-                    if (reg) {
-                        await reg.update();
-                    }
+                    if (reg) await reg.update();
                 } catch (e) {
                     console.warn('[SW] update failed', e);
                 }
@@ -227,37 +226,39 @@
             location.reload();
         }
 
+        // launcher-ready 受信時にバージョン整合性を確認し、不一致なら再読み込みする
         function checkVersionAndReload() {
+            if (typeof window.LAUNCHER_VERSION === 'undefined') return;
+            if (window.LAUNCHER_VERSION === window.HTML_VERSION) {
+                sessionStorage.removeItem(window.RELOAD_KEY);
+                return;
+            }
             const reloadCount = parseInt(sessionStorage.getItem(window.RELOAD_KEY)) || 0;
-
-            if (typeof window.LAUNCHER_VERSION !== 'undefined') {
-                if (window.LAUNCHER_VERSION !== window.HTML_VERSION) {
-                    if (reloadCount < window.MAX_RELOAD) {
-                        sessionStorage.setItem(window.RELOAD_KEY, reloadCount + 1);
-                        // alert()はPWAスタンドアロン等でブロックされるためトースト通知を使用
-                        window.dqxShowToast(`バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`, { duration: 2500 });
-                        setTimeout(() => clearDqxCachesAndReload(), 2600);
-                    } else {
-                        sessionStorage.removeItem(window.RELOAD_KEY);
-                        window.dqxShowToast(`バージョンが一致しません。旧バージョンで起動します。\n時間をおいて再読み込みしてください。`, { duration: 8000 });
-                        console.warn(`Version mismatch: LAUNCHER=${window.LAUNCHER_VERSION}, HTML=${window.HTML_VERSION} - 上限に達したため継続`);
-                    }
-                } else {
-                    sessionStorage.removeItem(window.RELOAD_KEY);
-                }
+            if (reloadCount < window.MAX_RELOAD) {
+                sessionStorage.setItem(window.RELOAD_KEY, reloadCount + 1);
+                window.dqxShowToast(
+                    `バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`,
+                    { duration: 2500 }
+                );
+                setTimeout(() => clearDqxCachesAndReload(), 2600);
             } else {
-                // ランチャー未到着時は待機 — ランチャー側が到着時に 'launcher-ready' を通知する
-                console.warn('Launcher not ready yet for version check');
+                sessionStorage.removeItem(window.RELOAD_KEY);
+                window.dqxShowToast(
+                    'バージョンが一致しません。旧バージョンで起動します。\n時間をおいて再読み込みしてください。',
+                    { duration: 8000 }
+                );
+                console.warn(
+                    `Version mismatch: LAUNCHER=${window.LAUNCHER_VERSION}, HTML=${window.HTML_VERSION} - 上限に達したため継続`
+                );
             }
         }
 
-        // ========== 控えめなトースト通知（画面占有モーダルは使わない） ==========
-        // alert/confirmは一部環境（PWA standalone等）でブロックされたり
-        // 操作感を損ねたりするため、自前DOM要素で完結させる。
+        // ========== トースト通知 ==========
+        // alert/confirm は PWA standalone で動作しない環境があるため自前実装
         window.dqxShowToast = function(message, opts) {
             opts = opts || {};
             const duration = opts.duration || 5000;
-            const variant = opts.variant || 'info'; // 'info' | 'success'
+            const variant  = opts.variant  || 'info';
 
             let toast = document.getElementById('dqx-update-toast');
             if (toast) toast.remove();
@@ -265,11 +266,23 @@
             toast = document.createElement('div');
             toast.id = 'dqx-update-toast';
             if (variant === 'success') toast.classList.add('dqx-toast-success');
-            toast.innerHTML = `
-                <span class="dqx-toast-icon">${variant === 'success' ? '✅' : 'ℹ️'}</span>
-                <span class="dqx-toast-body">${message}</span>
-                <button class="dqx-toast-close" aria-label="閉じる">✕</button>
-            `;
+
+            const icon  = document.createElement('span');
+            icon.className = 'dqx-toast-icon';
+            icon.textContent = variant === 'success' ? '✅' : 'ℹ️';
+
+            const body  = document.createElement('span');
+            body.className = 'dqx-toast-body';
+            body.textContent = message;   // textContent でXSS防止
+
+            const close = document.createElement('button');
+            close.className = 'dqx-toast-close';
+            close.setAttribute('aria-label', '閉じる');
+            close.textContent = '✕';
+
+            toast.appendChild(icon);
+            toast.appendChild(body);
+            toast.appendChild(close);
             document.body.appendChild(toast);
 
             requestAnimationFrame(() => toast.classList.add('show'));
@@ -278,31 +291,25 @@
                 toast.classList.remove('show');
                 setTimeout(() => toast.remove(), 320);
             };
-            toast.querySelector('.dqx-toast-close').onclick = hide;
+            close.onclick = hide;
             if (duration > 0) setTimeout(hide, duration);
         };
 
-        // ========== 常時表示：ネットワーク状態インジケーター ==========
-        // 画面右上に小さな丸を常設。タップで詳細（最終確認時刻・保存件数など）を表示。
-        // 状態：オンライン(🟢) / オフライン(🟠)
+        // ========== ネットワーク状態インジケーター ==========
         window.DQX_LAST_MANIFEST_CHECK = null;
-        window.DQX_LAST_MANIFEST_OK = null;
-        // 'latest'（最新）/ 'update'（更新あり）/ 'offline'（オフライン）/ 'checking'（確認中）
+        window.DQX_LAST_MANIFEST_OK    = null;
         window.DQX_NET_STATE = 'checking';
 
-        // ヘッダー内のインジケーターを更新する関数
-        // fixed配置はやめてヘッダー内に組み込む（スマホでのボタン被り解消）
         window.dqxUpdateNetIndicator = function() {
-            const dot = document.getElementById('dqx-net-status');
+            const dot     = document.getElementById('dqx-net-status');
             const popover = document.getElementById('dqx-net-popover');
             if (!dot) return;
 
             const state = window.DQX_NET_STATE;
-            const icon = { checking: '⏳', latest: '🟢', update: '🔵', offline: '🟠' }[state] || '⏳';
-            const online = navigator.onLine;
+            const icon  = { checking: '⏳', latest: '🟢', update: '🔵', offline: '🟠' }[state] || '⏳';
 
             dot.textContent = icon;
-            dot.className = 'dqx-net-dot';
+            dot.className   = 'dqx-net-dot';
             dot.classList.add(`dqx-net-${state}`);
 
             if (popover) {
@@ -316,8 +323,9 @@
                     offline:  '🟠 オフラインのため取得不可'
                 }[state] || '⏳ 確認中…';
 
+                // popover は内部管理データのみで構成され、外部入力を含まない
                 popover.innerHTML = `
-                    <div class="dqx-net-row"><span class="dqx-net-label">接続</span><span>${online ? 'オンライン' : 'オフライン'}</span></div>
+                    <div class="dqx-net-row"><span class="dqx-net-label">接続</span><span>${navigator.onLine ? 'オンライン' : 'オフライン'}</span></div>
                     <div class="dqx-net-row"><span class="dqx-net-label">バージョン</span><span>${statusText}</span></div>
                     <div class="dqx-net-row"><span class="dqx-net-label">確認時刻</span><span>${lastCheck}</span></div>
                     ${state === 'update' ? '<div style="margin-top:8px;"><button id="dqx-reload-btn" style="width:100%;padding:6px;background:#0066cc;color:white;border:none;border-radius:8px;cursor:pointer;font-size:12px;">今すぐ更新</button></div>' : ''}
@@ -327,180 +335,172 @@
             }
         };
 
-        function compareVersionStrings(a, b) {
-            // 厳密な同一性チェック（通常はここで判定される）
+        // ========== バージョン文字列比較ユーティリティ ==========
+        // index.html と settings.js の両方から参照できるよう window に公開する
+        window.dqxCompareVersions = function(a, b) {
             if (a === b) return 0;
-            // バージョン文字列から数値部分のみ抽出して比較
-            const parseNums = (value) => (value || '')
+            const parseNums = (v) => (v || '')
                 .split(/[^0-9]+/)
                 .filter(Boolean)
                 .map((n) => parseInt(n, 10));
             const aNums = parseNums(a);
             const bNums = parseNums(b);
-            const len = Math.max(aNums.length, bNums.length);
+            const len   = Math.max(aNums.length, bNums.length);
             for (let i = 0; i < len; i++) {
                 const na = aNums[i] || 0;
                 const nb = bNums[i] || 0;
                 if (na !== nb) return na > nb ? 1 : -1;
             }
-            // 数値部分が同じ場合は文字列長で判定（短い方が先）
             return a.length - b.length;
-        }
+        };
 
-        function getStoredManifestVersion() {
-            return localStorage.getItem('dqx_manifest_version');
-        }
-
+        // ========== マニフェストバージョン管理 ==========
+        function getStoredManifestVersion()       { return localStorage.getItem('dqx_manifest_version'); }
         function setStoredManifestVersion(version) {
-            if (version) {
-                localStorage.setItem('dqx_manifest_version', version);
-            }
+            if (version) localStorage.setItem('dqx_manifest_version', version);
         }
 
-        // ========== バージョンリセット処理 ==========
-        // 古いバージョン形式がキャッシュされている場合、初期化する
-        // これにより update ループを防止
-        function resetOldVersionCache() {
-            localStorage.removeItem('dqx_manifest_version');
-        }
-
-        // バージョン確認を実行する共通関数（起動時・ツール遷移時に呼ぶ）
+        // ========== バージョン確認（起動時・ツール遷移時に呼ぶ） ==========
         window.dqxCheckVersion = function() {
             if (!navigator.onLine) {
                 window.DQX_NET_STATE = 'offline';
                 window.dqxUpdateNetIndicator();
                 return Promise.resolve(null);
             }
-            // すでに update 確定済みなら再チェック不要（インジケーターを保持）
-            if (window.DQX_NET_STATE === 'update') {
-                return Promise.resolve(null);
-            }
+            if (window.DQX_NET_STATE === 'update') return Promise.resolve(null);
+
             window.DQX_NET_STATE = 'checking';
             window.dqxUpdateNetIndicator();
 
-            const manifestUrl = './tools-manifest.json?v=' + Date.now();
-            return fetch(manifestUrl, { cache: 'no-store' })
-                .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
-                .then(data => {
+            return fetch('./tools-manifest.json?v=' + Date.now(), { cache: 'no-store' })
+                .then((res) => { if (!res.ok) throw new Error(res.status); return res.json(); })
+                .then((data) => {
                     window.DQX_LAST_MANIFEST_CHECK = new Date();
-                    window.DQX_LAST_MANIFEST_OK = true;
-                    const remoteVer = data && data.launcherVersion;
-                    const storedManifestVer = getStoredManifestVersion();
-                    const cmp = (remoteVer && storedManifestVer)
-                        ? compareVersionStrings(remoteVer, storedManifestVer)
+                    window.DQX_LAST_MANIFEST_OK    = true;
+                    const remoteVer    = data && data.launcherVersion;
+                    const storedVer    = getStoredManifestVersion();
+                    const cmp = (remoteVer && storedVer)
+                        ? window.dqxCompareVersions(remoteVer, storedVer)
                         : 0;
                     window.DQX_NET_STATE = cmp > 0 ? 'update' : 'latest';
-                    // update の場合は localStorage を上書きしない
-                    // → 次回チェック時も update と判定され続けるようにする
-                    if (cmp <= 0) {
-                        setStoredManifestVersion(remoteVer);
-                    }
+                    if (cmp <= 0) setStoredManifestVersion(remoteVer);
                     window.dqxUpdateNetIndicator();
                     return data;
                 })
                 .catch(() => {
                     window.DQX_LAST_MANIFEST_CHECK = new Date();
-                    window.DQX_LAST_MANIFEST_OK = false;
+                    window.DQX_LAST_MANIFEST_OK    = false;
                     window.DQX_NET_STATE = 'offline';
                     window.dqxUpdateNetIndicator();
                     return null;
                 });
         };
 
+        // launcher-ready 受信 → バージョン整合性チェック（1箇所に統合）
         window.addEventListener('launcher-ready', function() {
-            if (typeof window.dqxCheckVersion === 'function') {
-                window.dqxCheckVersion();
-            }
+            checkVersionAndReload();
+            window.dqxCheckVersion();
         });
 
-        // オンライン/オフライン切替でも状態を更新
         window.addEventListener('online',  () => window.dqxCheckVersion());
-        window.addEventListener('offline', () => { window.DQX_NET_STATE = 'offline'; window.dqxUpdateNetIndicator(); });
+        window.addEventListener('offline', () => {
+            window.DQX_NET_STATE = 'offline';
+            window.dqxUpdateNetIndicator();
+        });
 
-        // ========== Service Worker 登録（PWA / オフライン対応） ==========
+        // ========== Service Worker 登録 ==========
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('./sw.js')
-                    .then((reg) => {
-                        console.log('[SW] registered:', reg.scope);
-                    })
-                    .catch((e) => {
-                        console.warn('[SW] registration failed:', e);
-                    });
+                    .then((reg) => console.log('[SW] registered:', reg.scope))
+                    .catch((e)  => console.warn('[SW] registration failed:', e));
             });
         }
 
-        // ========== 起動時オンラインチェック ==========
-        // dqxCheckVersion() を呼び出してバージョン確認＋ツール一覧取得を行う。
-        // 結果は DQX_REMOTE_MANIFEST に格納し、registerAllTools で使用する。
-        resetOldVersionCache();
-        window.DQX_REMOTE_MANIFEST = null;
+        // ========== 起動時バージョン確認 ==========
+        // 起動のたびに localStorage のマニフェストバージョンをリセットすると
+        // 比較基準が失われるため、ここでは削除しない。
+        // 古いキャッシュは dqxCheckVersion() が fetch した結果で自然に上書きされる。
+        window.DQX_REMOTE_MANIFEST        = null;
         window.DQX_MANIFEST_FETCH_PROMISE = window.dqxCheckVersion()
-            .then(data => {
+            .then((data) => {
                 if (data) {
                     window.DQX_REMOTE_MANIFEST = data;
-                    // オフラインのみトーストで通知
                 } else if (!navigator.onLine) {
                     document.addEventListener('DOMContentLoaded', function() {
                         setTimeout(() => {
-                            window.dqxShowToast('オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。');
+                            window.dqxShowToast(
+                                'オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。'
+                            );
                         }, 600);
                     });
                 }
                 return data;
             });
 
-        const skipMaintenance = localStorage.getItem('dqx_dev_mode') === 'true';
+        // ========== メンテナンスモード ==========
         const START_DATE = new Date('2026-05-21T12:30:00');
         const END_DATE   = new Date('2026-05-21T16:00:00');
         const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
+        const skipMaintenance  = localStorage.getItem('dqx_dev_mode') === 'true';
 
         if (MAINTENANCE_MODE && !skipMaintenance) {
             document.addEventListener('DOMContentLoaded', function() {
                 const overlay = document.createElement('div');
-                overlay.style.cssText = `
-                    position: fixed;
-                    top: 0; left: 0;
-                    width: 100%; height: 100%;
-                    background: rgba(0, 0, 0, 0.85);
-                    z-index: 10000;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    flex-direction: column;
-                    font-family: sans-serif;
-                `;
-                overlay.innerHTML = `<div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">メンテナンス中<br>12:30〜16:00</div>`;
+                overlay.className = 'maintenance-overlay';
+                overlay.innerHTML = '<div class="maintenance-text">メンテナンス中<br>12:30〜16:00</div>';
                 document.body.appendChild(overlay);
             });
         }
 
-        // ツール定義（ファイル名, グローバル名, 表示名, アイコン）
-        const TEST_TOOLS = [
-            { file: 'testtool.js', globalName: 'DQtool', name: '構成保存', icon: '📊' },
-            { file: 'testtool2.js', globalName: 'DQtool2', name: 'テスト空枠', icon: '💿' },
-            { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール', icon: '🛠️' }
-        ];
-        
-        // ランチャー到着時にバージョンチェックを実行
-        window.addEventListener('launcher-ready', function() {
-            checkVersionAndReload();
-        });
-        // 既にランチャーが読み込まれている場合は即時チェック
-        window.addEventListener('load', function() {
-            if (typeof window.LAUNCHER_VERSION !== 'undefined') {
-                checkVersionAndReload();
-            }
-        });
+        // ========== ロード画面（毎日6時境界） ==========
+        (function() {
+            const SPLASH_KEY = 'dqx_splash_last';
+            const SPLASH_IMAGES = [
+                './images/dqx_loading.jpg',
+                './images/dqx_loading2.jpg',
+                './images/dqx_loading3.jpg',
+                './images/dqx_loading4.jpg',
+                './images/dqx_loading5.jpg',
+            ];
 
-        // ========== 更新検知の主軸 ==========
-        // index.html を network-first（Service Worker側）で常に最新取得し、
-        // HTML_VERSION と launcher.js の LAUNCHER_VERSION の不一致を
-        // checkVersionAndReload() で検知 → 自動で再読み込みする。
-        // これにより js/css 等の周辺ファイルも合わせて最新化される。
-        // tools-manifest.json は「ツール一覧・アイコン・説明文」の情報源として
-        // 引き続き個別fetchするが、バージョン不一致の通知トリガーとしては使わない
-        // （二重通知を避けるため）。
+            /** JST 6時を境にした「有効日」を YYYYMMDD 文字列で返す */
+            function getEffectiveDayKey() {
+                const now = new Date();
+                const jstOffset = 9 * 60;
+                const jst = new Date(now.getTime() + (jstOffset - now.getTimezoneOffset()) * 60000);
+                if (jst.getHours() < 6) jst.setDate(jst.getDate() - 1);
+                return jst.toISOString().slice(0, 10).replace(/-/g, '');
+            }
+
+            function shouldShowSplash() {
+                const last = localStorage.getItem(SPLASH_KEY);
+                return last !== getEffectiveDayKey();
+            }
+
+            function markSplashShown() {
+                localStorage.setItem(SPLASH_KEY, getEffectiveDayKey());
+            }
+
+            window.DQX_SHOW_SPLASH = shouldShowSplash();
+            window.DQX_MARK_SPLASH = markSplashShown;
+            window.DQX_SPLASH_IMAGES = SPLASH_IMAGES;
+            window.DQX_SPLASH_DAY_KEY = getEffectiveDayKey;
+        })();
+
+        // ========== お知らせ取得 ==========
+        window.DQX_NOTICES_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/notices.json';
+        window.DQX_NOTICES = null;
+        window.DQX_NOTICES_PROMISE = null;
+        if (navigator.onLine) {
+            window.DQX_NOTICES_PROMISE = fetch(window.DQX_NOTICES_URL + '?v=' + Date.now(), { cache: 'no-store' })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => { window.DQX_NOTICES = data; return data; })
+                .catch(() => null);
+        }
+
+        // ========== バックグラウンド更新チェック結果格納 ==========
+        window.DQX_BG_CHECK_RESULTS = {};  // toolId -> boolean(hasUpdate)
     </script>
 </head>
 <body>
@@ -508,14 +508,14 @@
 <script src="./launcher.js"></script>
 <script>
 // ========== ツール登録（tools-manifest.json と連携） ==========
-// 1. ハードコードされたフォールバック定義（オフライン/取得失敗時に使用）
+// オフライン / 取得失敗時に使用するフォールバック定義
 const FALLBACK_TOOLS = [
-    { id: 'Checker', name: 'コンテンツ<br>チェッカー', icon: '📋', desc: '進捗管理', url: './tools/checker.js', renderFn: 'Checker.render' },
-    { id: 'exp-m', name: '傭兵用多機能ツール', icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js', renderFn: 'Expmercenary.render' },
-    { id: 'versions', name: '傭兵用多機能ツール<br>旧ver', icon: '📜', desc: '旧verセレクタ', url: './tools/version_selector.js', renderFn: 'VersionSelector.render' },
-    { id: 'help', name: '取扱説明書', icon: '📖', desc: '使い方<br>Q&A', url: './tools/help.js', renderFn: 'Help.render' },
-    { id: 'settings', name: '設定', icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js', renderFn: 'Settings.render' },
-    { id: 'install', name: 'アプリの<br>使い方', icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js', renderFn: 'Install.render', hideInMenu: true }
+    { id: 'Checker',  name: 'コンテンツ<br>チェッカー',        icon: '📋', desc: '進捗管理',              url: './tools/checker.js',          renderFn: 'Checker.render' },
+    { id: 'exp-m',    name: '傭兵用多機能ツール',              icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js',      renderFn: 'Expmercenary.render' },
+    { id: 'versions', name: '傭兵用多機能ツール<br>旧ver',     icon: '📜', desc: '旧verセレクタ',          url: './tools/version_selector.js',  renderFn: 'VersionSelector.render' },
+    { id: 'help',     name: '取扱説明書',                      icon: '📖', desc: '使い方<br>Q&A',          url: './tools/help.js',              renderFn: 'Help.render' },
+    { id: 'settings', name: '設定',                            icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js',     renderFn: 'Settings.render' },
+    { id: 'install',  name: 'アプリの<br>使い方',              icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js',      renderFn: 'Install.render', hideInMenu: true }
 ];
 
 function registerAllTools(manifestData) {
@@ -524,54 +524,47 @@ function registerAllTools(manifestData) {
         : FALLBACK_TOOLS;
     const testToolList = (manifestData && Array.isArray(manifestData.testTools) && manifestData.testTools.length > 0)
         ? manifestData.testTools
-        : TEST_TOOLS;
+        : [];
 
-    // 新規ツール検知用：登録前の既知ツールIDを取得
+    // 新規ツール通知用：登録前の既知IDを取得
     const knownIdsRaw = localStorage.getItem('dqx_known_tool_ids');
-    const knownIds = knownIdsRaw ? JSON.parse(knownIdsRaw) : null;
-    const currentIds = toolList.map(t => t.id);
+    const knownIds    = knownIdsRaw ? JSON.parse(knownIdsRaw) : null;
+    const currentIds  = toolList.map((t) => t.id);
 
-    // 通常ツールの登録
-    // hideInMenu: true のツール（例：アプリの使い方）はホーム画面のカード一覧や
-    // ツールメニューには出さず、フッターリンク等から個別に loadTool() で呼び出す。
-    toolList.forEach(tool => {
+    toolList.forEach((tool) => {
         DQXTools.register(tool.id, {
-            name: tool.name,
-            icon: tool.icon,
-            desc: tool.desc,
-            url: tool.url,
-            renderFn: tool.renderFn,
+            name:       tool.name,
+            icon:       tool.icon,
+            desc:       tool.desc,
+            url:        tool.url,
+            renderFn:   tool.renderFn,
             hideInMenu: !!tool.hideInMenu
         });
     });
 
-    // テストツールをダミー登録（カード表示用、ツールバー非表示）
-    testToolList.forEach(tool => {
+    // テストツールはカード表示のみ（ツールバー非表示）
+    testToolList.forEach((tool) => {
         DQXTools.register(`test_${tool.file}`, {
-            name: `${tool.name} 🔒`,
-            icon: tool.icon,
-            desc: 'API認証',
-            url: '',
-            renderFn: '',
-            hideInMenu: true,
-            requiresToken: true,
-            testToolConfig: {
-                filename: tool.file,
-                globalName: tool.globalName
-            }
+            name:           `${tool.name} 🔒`,
+            icon:           tool.icon,
+            desc:           'API認証',
+            url:            '',
+            renderFn:       '',
+            hideInMenu:     true,
+            requiresToken:  true,
+            testToolConfig: { filename: tool.file, globalName: tool.globalName }
         });
     });
 
     DQXTools.init('dqx-app');
 
-    // 既知リストとの差分があれば「新しいツールが追加されました」通知
-    // （初回起動時(knownIds === null)は通知しない）
+    // 初回起動（knownIds === null）は通知しない
     if (knownIds !== null) {
-        const newIds = currentIds.filter(id => !knownIds.includes(id));
+        const newIds = currentIds.filter((id) => !knownIds.includes(id));
         if (newIds.length > 0) {
             const newNames = toolList
-                .filter(t => newIds.includes(t.id))
-                .map(t => t.name.replace(/<br>/g, ''))
+                .filter((t) => newIds.includes(t.id))
+                .map((t) => t.name.replace(/<br>/g, ''))
                 .join('、');
             setTimeout(() => {
                 window.dqxShowToast(`新しいツールが追加されました：${newNames}`, { variant: 'success', duration: 7000 });
@@ -582,29 +575,24 @@ function registerAllTools(manifestData) {
 }
 
 window.addEventListener('load', function() {
-    // tools-manifest.json の取得を待ってから登録（最大6秒でタイムアウト済み）
-    // これにより「起動時オンライン接続でバージョン/新規ツールを確認」を実現しつつ、
-    // 取得に失敗してもフォールバック定義で確実に起動する。
     window.DQX_MANIFEST_FETCH_PROMISE
         .then((data) => registerAllTools(data))
-        .catch(() => registerAllTools(null));
+        .catch(()    => registerAllTools(null));
 });
 </script>
 <!-- デバッグツール（?debug=1 または ?eruda で有効） -->
 <script>
 (function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const enableDebug = urlParams.has('debug') || urlParams.has('eruda');
-    
-    if (enableDebug) {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/eruda';
-        script.onload = function() {
-            eruda.init();
-            console.log('デバッグモード有効 - 幅:', window.innerWidth);
-        };
-        document.head.appendChild(script);
-    }
+    const params      = new URLSearchParams(window.location.search);
+    const enableDebug = params.has('debug') || params.has('eruda');
+    if (!enableDebug) return;
+    const script    = document.createElement('script');
+    script.src      = 'https://cdn.jsdelivr.net/npm/eruda';
+    script.onload   = function() {
+        eruda.init();
+        console.log('デバッグモード有効 - 幅:', window.innerWidth);
+    };
+    document.head.appendChild(script);
 })();
 </script>
 </body>

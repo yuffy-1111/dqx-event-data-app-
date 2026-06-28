@@ -8,8 +8,6 @@
             container.innerHTML = `
                 <div class="help-container">
                     <h2>📖 取扱説明書</h2>
-                    
-                    <!-- 目次 -->
                     <div class="help-toc">
                         <h3>📑 目次</h3>
                         <ul>
@@ -21,8 +19,6 @@
                             <li><a href="#qa">Q&amp;A</a></li>
                         </ul>
                     </div>
-                    
-                    <!-- コンテンツチェッカー -->
                     <div id="checker" class="help-section">
                         <h3>📋 コンテンツチェッカー</h3>
                         <ul>
@@ -35,8 +31,6 @@
                             <li>編集モードを起動するとチェックボックス部分はロック設定に置き換わります。キャラクター、コンテンツ別でチェックボックスをグレーアウトさせることができます。また、表の左側に✓が描画され、選択すると✗に切り替わりその行が非表示になります。</li>
                         </ul>
                     </div>
-                    
-                    <!-- 傭兵用多機能ツール -->
                     <div id="expmercenary" class="help-section">
                         <h3>⚔️ 傭兵用多機能ツール</h3>
                         <ul>
@@ -51,8 +45,6 @@
                             <li>履歴コピーを押すことで主要な情報と履歴行がクリップボードにコピーされます。</li>
                         </ul>
                     </div>
-                    
-                    <!-- 傭兵用多機能ツール旧ver -->
                     <div id="oldver" class="help-section">
                         <h3>📜 傭兵用多機能ツール旧ver</h3>
                         <ul>
@@ -60,8 +52,6 @@
                             <li>古いverのため不具合が残っている場合があります。</li>
                         </ul>
                     </div>
-
-                    <!-- アプリの使い方 -->
                     <div id="install" class="help-section">
                         <h3>📲 アプリの使い方</h3>
                         <ul>
@@ -70,8 +60,6 @@
                             <li>追加しなくてもブラウザでそのまま使用できます。インストールはより便利に使うための任意機能です。</li>
                         </ul>
                     </div>
-                    
-                    <!-- 設定 -->
                     <div id="settings" class="help-section">
                         <h3>⚙️ 設定</h3>
                         <ul>
@@ -80,8 +68,6 @@
                             <li>記載されているGitHub Issues及びX(旧Twitter)アカウントにて管理人へのフィードバックを行うことができます。不具合や質問など気軽にご連絡ください。</li>
                         </ul>
                     </div>
-                    
-                    <!-- Q&A -->
                     <div id="qa" class="help-section">
                         <h3>❓ Q&amp;A</h3>
                         <div class="qa-item">
@@ -226,6 +212,7 @@
             container.appendChild(style);
         },
         
+        // グローバルリスナーを持たないため destroy は空実装
         destroy: function() {}
     };
     

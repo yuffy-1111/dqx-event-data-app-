@@ -1,13 +1,13 @@
-// ========== 傭兵用多機能ツール ver2.2.0 (merged) ==========
-// ベース: ver2.1.0 統合
+// ========== 傭兵用多機能ツール ver2.3.0 ==========
+// ベース: ver2.2.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベース設計思想で再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
-// [QUAL]   基本的な動作ロジックは2.1.0から変更なし
+// [QUAL]   基本的な動作ロジックは2.1.0から変更なし（ver2.2.0時点）
+// [LOGIC]  経験値計算を実測値ベースに修正: applyLimit 廃止 → floor + fdBonus 方式に変更（ver2.3.0）
 
 // 変更履歴（ver2.0.0時点）:
 // [BUG] _recalcLaps: 削除後の lastLapSec 更新を正確化
 // [BUG] jobOffsetSec: 転職ボタン連打防止(1秒クールダウン)
-// [BUG] passbookOffset: 浮動小数の端数を Math.ceil で統一
 // [SEC] innerHTML を createElement+textContent に置き換え(XSS対策)
 // [PERF] querySelectorAll を addRow 時のキャッシュ配列管理に変更
 // [PERF] setInterval を 42ms（~24fps）に変更(表示更新負荷削減)
@@ -16,15 +16,15 @@
 // [QUAL] ExpCalc をファクトリ関数化（複数インスタンス対応）
 // [QUAL] CSV1/CSV2 のキー型を統一(すべて文字列)
 // [QUAL] ritaOrKuma は AC リセット対象外(転職先選好はセッション継続が自然なため)
-// [QUAL] calcLockedUntil の 100ms 制限を廃止(タイマー開始と加算は独立)
+// [QUAL] calcLockedUntil の 100ms 制限を 3000ms（加算後クールダウン）に変更
 
 (function (global) {
   "use strict";
 
-  // ─── パートナー経験値定数 ───────────────────────────────────────────────
+  // ─── お供経験値定数 ───────────────────────────────────────────────
   const PARTNER_EXP = {
     none: 0, mk: 48240, hm1: 12060, hm2: 24120, hm3: 36180,
-    tappitsu: 4800, gn: 2240, sn: 1120, zucchini: 9010,
+    gn: 720, sn: 720, zucchini: 9010,
   };
 
   const EXP_PER_LV = 1589326;
@@ -125,7 +125,7 @@
     return map;
   })();
 
-  // ─── パートナー選択肢テンプレート（cloneNode で再利用） ───────────────
+  // ─── お供選択肢テンプレート（cloneNode で再利用） ───────────────
   function buildPartnerTemplate(includeDearth) {
     const frag = document.createDocumentFragment();
     const defs = [
@@ -135,7 +135,7 @@
       ["hm3",      "はぐメタ3"],
       ["mk",       "メタキン"],
       ["gn",       "ゲノミー"],
-      ["sn",       "仙人"],
+      ["sn",       "ﾀｯﾋﾟﾂ仙人"],
     ];
     if (includeDearth) defs.push(["zucchini", "ズッキ祖"]);
     defs.forEach(([val, label]) => {
@@ -179,14 +179,6 @@
       return `${String(m).padStart(2, "0")}:${s}`;
     }
 
-    // ── 経験値上限適用 ───────────────────────────────────────────────────
-    function applyLimit(val, limit, fd) {
-      const rounded = Math.round(val);
-      const isNearInt = Math.abs(val - rounded) < 0.1;
-      const ceiled = fd && isNearInt ? rounded + 1 : Math.ceil(val);
-      return Math.min(ceiled, limit);
-    }
-
     // ── 経験値計算 ───────────────────────────────────────────────────────
     function calcExp(callCount, partnerKey = "none", snap = null) {
       let baseExp, bonusExp, fd, tr, ag, em, elixir, pbVal;
@@ -221,31 +213,37 @@
       const hasPassbook    = passbookLimit > 0;
       const isHighLimit    = elixir === "bakushin" || tr;
       const expLimit       = isHighLimit ? 1499999 : 599999;
-      const angelLimit     = isHighLimit ? 1499999 : 599999;
 
       const rawCommon  = baseExp * rate + bonusExp;
       const rawAngel   = ag ? baseExp * 2 : 0;
       const rawPCommon = partnerExpVal * rate;
       const rawPAngel  = ag ? partnerExpVal * 2 : 0;
 
-      const rawTotalCommon = rawCommon  * callCount + rawPCommon;
-      const rawTotalAngel  = rawAngel   * callCount + rawPAngel;
+      // ゲームの経験値計算ロジック（実測値9件から確定）:
+      //   floor(total) + (料理あり ? 1 : 0)
+      // 料理(+0.3)があるとrateに小数部が生じる。c=5,10等でtotalが
+      // 数学的には整数になる組み合わせでもゲームは+1する。
+      // 料理なし(rate=整数)はtotalが正確に整数になるため+1不要。
+      // エンゼル経験値(rawAngel)のrateは×2固定(整数)のため料理補正は
+      // 通常経験値と同じ条件(ag && fd)でのみ適用する。
+      const fdBonus = fd ? 1 : 0;
+      const rawTotalCommon = Math.floor(rawCommon * callCount + rawPCommon) + fdBonus;
+      const rawTotalAngel  = Math.floor(rawAngel  * callCount + rawPAngel)  + (ag && fd ? 1 : 0);
       const rawTotal       = rawTotalCommon + rawTotalAngel;
 
       if (hasPassbook) {
         const commonCapped = Math.min(rawTotalCommon, expLimit);
-        const angelCapped  = Math.min(rawTotalAngel,  angelLimit);
-        const overflow     = Math.ceil((rawTotalCommon - commonCapped) + (rawTotalAngel - angelCapped));
-        const common       = applyLimit(commonCapped, expLimit, fd);
-        const angel        = Math.min(Math.ceil(angelCapped), angelLimit);
+        const angelCapped  = Math.min(rawTotalAngel,  expLimit);
+        const overflow     = Math.max(0, (rawTotalCommon - commonCapped) + (rawTotalAngel - angelCapped));
+        const common       = commonCapped;
+        const angel        = angelCapped;
         return { total: common + angel, common, angel, overflow,
           rawTotalCapped: commonCapped + angelCapped,
           rawCommonCapped: commonCapped, rawAngelCapped: angelCapped };
       } else {
         const cappedTotal = Math.min(rawTotal, expLimit);
-        const total       = applyLimit(cappedTotal, expLimit, fd);
-        return { total, common: total, angel: 0,
-          overflow: Math.ceil(rawTotal - cappedTotal),
+        return { total: cappedTotal, common: cappedTotal, angel: 0,
+          overflow: Math.max(0, rawTotal - cappedTotal),
           rawTotalCapped: cappedTotal, rawCommonCapped: cappedTotal, rawAngelCapped: 0 };
       }
     }
@@ -337,6 +335,7 @@
     }
 
     // ── 平均ラップ取得 ───────────────────────────────────────────────────
+    // { avg: number, count: number } を返す。対象行がなければ null
     function getAverageLapSec() {
       const times = rowCache
         .filter(r => r.dataset.lap !== "-1" &&
@@ -346,7 +345,7 @@
         .map(r => parseFloat(r.dataset.lap))
         .filter(v => !isNaN(v));
       if (times.length === 0) return null;
-      return times.reduce((a, b) => a + b, 0) / times.length;
+      return { avg: times.reduce((a, b) => a + b, 0) / times.length, count: times.length };
     }
 
     // ── 行キャッシュ（追加順: 古い→新しい） ─────────────────────────────
@@ -601,7 +600,7 @@
         const type = r.dataset.type;
         if (type === "lap_only" || type === "job") return;
         if (r.dataset.bid === "LAP") return;
-        if (type === "angel") {
+        if (type === "angel" || type === "overflow") {
           const el = r.querySelector(".row-id-normal");
           if (el) el.textContent = `#${num - 1}`;
         } else {
@@ -659,7 +658,6 @@
     function updateTotal() {
       let totalExp    = 0;
       let passbookExp = 0;
-      const lapTimes  = [];
       let penaltyMin  = 0;
       let penaltyMax  = 0;
 
@@ -667,13 +665,6 @@
         const expVal = parseInt(el.dataset.val) || 0;
         totalExp += expVal;
         if (el.dataset.type === "pass") passbookExp += expVal;
-
-        if (el.dataset.lap !== "-1" &&
-            el.dataset.type !== "lap_only" &&
-            el.dataset.type !== "job" &&
-            el.dataset.main === "true") {
-          lapTimes.push(parseFloat(el.dataset.lap));
-        }
 
         if (el.dataset.desp === "true" &&
             el.dataset.lap !== "-1" &&
@@ -688,7 +679,7 @@
         }
       });
 
-      $("totalExpDisplay").textContent = Math.ceil(totalExp).toLocaleString();
+      $("totalExpDisplay").textContent = totalExp.toLocaleString();
 
       const passbookLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
       if (passbookLimit > 0) {
@@ -713,12 +704,13 @@
         penaltyRef.classList.add("hidden");
       }
 
-      if (lapTimes.length > 0) {
-        const avgSec = lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length;
+      const lapResult = getAverageLapSec();
+      if (lapResult !== null) {
+        const { avg: avgSec, count: lapCount } = lapResult;
         $("avgTimeDisplay").textContent = formatTime(avgSec);
         if (avgSec > 0.01) {
           const battles30min = Math.floor(1800 / avgSec);
-          const expPerBattle = totalExp / lapTimes.length;
+          const expPerBattle = totalExp / lapCount;
           $("estimatedGoldDisplay").textContent =
             `${Math.round(expPerBattle * battles30min / 1e4)}万～` +
             `${Math.round(expPerBattle * (battles30min + 1) / 1e4)}万`;
@@ -1066,9 +1058,9 @@ ${getStyles()}
           updateTimerDisplay(elapsed);
 
           if (lapNotifyEnabled) {
-            const avg     = getAverageLapSec();
-            const current = elapsed - lastLapSec;
-            if (avg !== null && current > avg) {
+            const lapResult = getAverageLapSec();
+            const current   = elapsed - lastLapSec;
+            if (lapResult !== null && current > lapResult.avg) {
               if (!lapNotifyFired) {
                 lapNotifyFired = true;
                 playLapWarning();
@@ -1231,6 +1223,16 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
+v2.3.0 ...最終更新日 2026/06/27
+  - お供経験値の設定の修正
+  - 計算ロジックの修正（floor + fdBonus 方式）
+  - angelLimit を expLimit に統合
+  - getAverageLapSec の戻り値を { avg, count } 形式に変更し updateTotal の重複集計を統合
+  - renumberRows で overflow 行にも行番号を補正するよう修正
+  - destroy() のリセット漏れ変数を追加（killCount / calcLockedUntil / lapNotifyFired / jobBtnLocked）
+  - addVersionModal の DOM 参照を document 全体から root 起点に変更
+  - totalExpDisplay の冗長な Math.ceil を削除
+
 v2.2.0 ...最終更新日 2026/06/21
   - LAP及び転職行からデスペナルティを削除
   - 微細なカラー及びサイズ調整
@@ -1304,13 +1306,15 @@ v1.1.7
   </div>
 </div>`;
 
-        const versionContainer = document.querySelector('#dqx-tool-container');
+        const versionContainer = root.parentElement;
         if (versionContainer) {
           versionContainer.insertAdjacentHTML('afterend', modalHTML);
         }
 
-        const tabs = document.querySelectorAll('.modal-tab');
-        const contents = document.querySelectorAll('.modal-tab-content');
+        // モーダルは versionContainer の直後の兄弟要素として挿入される
+        const modalEl   = versionContainer ? versionContainer.nextElementSibling : document.getElementById('versionModal');
+        const tabs      = modalEl ? modalEl.querySelectorAll('.modal-tab')         : [];
+        const contents  = modalEl ? modalEl.querySelectorAll('.modal-tab-content') : [];
         let activeTab = null;
 
         const openTab = (tabId) => {
@@ -1324,10 +1328,10 @@ v1.1.7
           contents.forEach(c => c.classList.remove('active'));
           tabs.forEach(t => t.classList.remove('active'));
 
-          const target = document.getElementById(`tab-${tabId}`);
+          const target = modalEl ? modalEl.querySelector(`#tab-${tabId}`) : null;
           if (target) target.classList.add('active');
 
-          const activeTabEl = document.querySelector(`.modal-tab[data-tab="${tabId}"]`);
+          const activeTabEl = modalEl ? modalEl.querySelector(`.modal-tab[data-tab="${tabId}"]`) : null;
           if (activeTabEl) activeTabEl.classList.add('active');
 
           activeTab = tabId;
@@ -1347,7 +1351,13 @@ v1.1.7
       destroy() {
         if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
         startTime = pauseSec = lastLapSec = jobOffsetSec = passbookOffset = 0;
+        killCount = calcLockedUntil = 0;
+        lapNotifyFired = jobBtnLocked = false;
         rowCache.length = 0;
+
+        // render() で root.parentElement の afterend に挿入した versionModal を削除
+        const modal = document.getElementById('versionModal');
+        if (modal) modal.remove();
       },
     };
   }
