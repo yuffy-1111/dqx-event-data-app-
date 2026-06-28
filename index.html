@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>ユッフィーのDQXツール</title>
+    <title>ユッフィーのDQXツールラボ</title>
     <link rel="manifest" href="./manifest.webmanifest">
     <meta name="theme-color" content="#0066cc">
     <link rel="apple-touch-icon" href="./icons/icon-maskable-192.png">
@@ -115,7 +115,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.5β+';
+        window.HTML_VERSION = '1.1.7β+';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -393,9 +393,9 @@
 // ========== ツール登録（tools-manifest.json と連携） ==========
 // オフライン / 取得失敗時に使用するフォールバック定義
 const FALLBACK_TOOLS = [
-    { id: 'Checker',  name: 'コンテンツ<br>チェッカー',        icon: '📋', desc: '進捗管理',              url: './tools/checker.js',          renderFn: 'Checker.render' },
-    { id: 'exp-m',    name: '傭兵用多機能ツール',              icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js',      renderFn: 'Expmercenary.render' },
-    { id: 'versions', name: '傭兵用多機能ツール<br>旧ver',     icon: '📜', desc: '旧verセレクタ',          url: './tools/version_selector.js',  renderFn: 'VersionSelector.render' },
+    { id: 'Checker',  name: '進捗チェッカー',        icon: '📋', desc: '日課・週課・隔週・月課',              url: './tools/checker.js',          renderFn: 'Checker.render' },
+    { id: 'exp-m',    name: '傭兵ログトラッカー',              icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js',      renderFn: 'Expmercenary.render' },
+    { id: 'versions', name: '傭兵ログトラッカー<br>旧ver',     icon: '📜', desc: '旧verセレクタ',          url: './tools/version_selector.js',  renderFn: 'VersionSelector.render' },
     { id: 'help',     name: '取扱説明書',                      icon: '📖', desc: '使い方<br>Q&A',          url: './tools/help.js',              renderFn: 'Help.render' },
     { id: 'settings', name: '設定',                            icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js',     renderFn: 'Settings.render' },
     { id: 'install',  name: 'アプリの<br>使い方',              icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js',      renderFn: 'Install.render', hideInMenu: true }

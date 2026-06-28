@@ -1,20 +1,20 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.5β+",
+  "launcherVersion": "1.1.7β+",
   "updatedAt": "2026-06-28",
   "tools": [
     {
       "id": "Checker",
-      "name": "コンテンツ<br>チェッカー",
+      "name": "進捗チェッカー",
       "icon": "📋",
-      "desc": "進捗管理",
+      "desc": "日課・週課・隔週・月課",
       "url": "./tools/checker.js",
       "renderFn": "Checker.render",
       "cache": true
     },
     {
       "id": "exp-m",
-      "name": "傭兵用多機能ツール",
+      "name": "傭兵ログトラッカー",
       "icon": "⚔️",
       "desc": "経験値計算<br>タイマー",
       "url": "./tools/expmercenary.js",
@@ -23,7 +23,7 @@
     },
     {
       "id": "versions",
-      "name": "傭兵用多機能ツール<br>旧ver",
+      "name": "傭兵ログトラッカー<br>旧ver",
       "icon": "📜",
       "desc": "旧verセレクタ",
       "url": "./tools/version_selector.js",

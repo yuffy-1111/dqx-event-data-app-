@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.5β+';
+const APP_VERSION = '1.1.7β+';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -216,7 +216,7 @@ const DQXTools = {
         this.container.innerHTML = `
             <div class="home-container">
                 <div class="home-header">
-                    <h1 class="home-title">🎮 DQXツール</h1>
+                    <h1 class="home-title">DQXツールラボ</h1>
                     <div class="home-header-actions">
                         <button id="open-manage-link" class="manage-btn">カード編集</button>
                         <button id="global-dark-toggle" class="dark-toggle-btn">${this.darkMode ? '☀️' : '🌙'}</button>
