@@ -291,6 +291,23 @@ body.dark-mode #manage-modal .manage-row {
     filter: grayscale(0.3);
 }
 
+/* カードバッジ（更新インジケーター） */
+.tool-card {
+    position: relative;
+}
+.card-badge {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 14px;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.card-badge-yellow  { color: #f59e0b; }
+.card-badge-orange  { color: #f97316; }
+
 .home-footer {
     display: flex;
     flex-direction: column;
@@ -345,7 +362,24 @@ body.dark-mode #manage-modal .manage-row {
 
 .footer-copyright {
     color: #888;
+    font-size: 11px;
+    line-height: 1.6;
 }
+
+.footer-text-btn {
+    background: none;
+    border: none;
+    color: #0066cc;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 4px 2px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.footer-text-btn:hover { opacity: 0.75; }
+
+body.dark-mode .footer-text-btn { color: #60a5fa; }
 
 body.dark-mode .footer-install-link {
     color: #60a5fa;

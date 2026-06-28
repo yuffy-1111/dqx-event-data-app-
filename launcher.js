@@ -1,9 +1,172 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.2.1β+';
+const APP_VERSION = '1.1.7β+';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
 window.dispatchEvent(new Event('launcher-ready'));
+
+// ========== ローディング画面 ==========
+// 毎日JST6時を境目に、1日1回だけ表示する
+(function() {
+    const IMAGES = [
+        './images/dqx_loading.jpg',
+        './images/dqx_loading2.jpg',
+        './images/dqx_loading3.jpg',
+        './images/dqx_loading4.jpg',
+        './images/dqx_loading5.jpg',
+    ];
+
+    function getJSTDateKey() {
+        const now = new Date();
+        const jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+        if (jst.getHours() < 6) jst.setDate(jst.getDate() - 1);
+        return `${jst.getFullYear()}-${jst.getMonth() + 1}-${jst.getDate()}`;
+    }
+
+    const today    = getJSTDateKey();
+    const storeKey = 'dqx_loading_shown_date';
+    const shown    = sessionStorage.getItem(storeKey);
+    if (shown === today) return; // 同セッション内で今日すでに表示済み
+
+    // 日付が変わっていたら表示フラグをリセット
+    const lsKey     = 'dqx_loading_shown_ls';
+    const lsShown   = localStorage.getItem(lsKey);
+    if (lsShown === today) {
+        // 同じカレンダー日だが別セッション → 本日分は表示済みとして skip
+        sessionStorage.setItem(storeKey, today);
+        return;
+    }
+
+    // 画像をランダム選択
+    const img = IMAGES[Math.floor(Math.random() * IMAGES.length)];
+
+    const overlay = document.createElement('div');
+    overlay.id    = 'dqx-loading-overlay';
+    overlay.style.cssText = [
+        'position:fixed;inset:0;z-index:99999;',
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;',
+        'background:#000;',
+        'transition:opacity 0.6s ease;',
+    ].join('');
+
+    const imgEl = document.createElement('img');
+    imgEl.src   = img;
+    imgEl.style.cssText = 'max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px;';
+    imgEl.alt   = 'Loading…';
+
+    const label = document.createElement('div');
+    label.textContent   = 'Now Loading…';
+    label.style.cssText = 'color:#aaa;font-size:13px;margin-top:16px;letter-spacing:.1em;';
+
+    overlay.appendChild(imgEl);
+    overlay.appendChild(label);
+    document.body.appendChild(overlay);
+
+    // 記録
+    sessionStorage.setItem(storeKey, today);
+    localStorage.setItem(lsKey, today);
+
+    // 2秒後にフェードアウトして除去（バックグラウンド処理の完了を待たず視覚的に消す）
+    setTimeout(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.remove(), 650);
+    }, 2000);
+
+    // 公開：外部からロード画面を閉じたいとき
+    window.dqxCloseLoadingOverlay = function() {
+        if (!overlay.parentNode) return;
+        overlay.style.opacity = '0';
+        setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 650);
+    };
+})();
+
+// ========== バックグラウンドコンテンツチェック ==========
+// ロード中にサイレントでツールデータを取得し、更新があればカードにバッジを立てる
+window.DQX_CARD_BADGES = {}; // { toolId: 'yellow' | 'checker' }
+
+(function() {
+    const CHECKER_EVENTS_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
+    const STORE_KEY_CHECKER  = 'dqx_bg_checker_snapshot';
+    const STORE_KEY_EXP      = 'dqx_bg_exp_snapshot';
+    const STORE_KEY_DATE     = 'dqx_bg_check_date';
+    const RESET_HOUR         = 6;
+
+    function getJSTDateKey() {
+        const now = new Date();
+        const jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+        if (jst.getHours() < RESET_HOUR) jst.setDate(jst.getDate() - 1);
+        return `${jst.getFullYear()}-${jst.getMonth() + 1}-${jst.getDate()}`;
+    }
+
+    async function runChecks() {
+        if (!navigator.onLine) return;
+        const today   = getJSTDateKey();
+        const checked = localStorage.getItem(STORE_KEY_DATE);
+        // 同日はスキップ（バッジは維持）
+        if (checked === today) {
+            // 前回の結果からバッジを復元
+            try {
+                const badges = JSON.parse(localStorage.getItem('dqx_bg_badges') || '{}');
+                Object.assign(window.DQX_CARD_BADGES, badges);
+            } catch(e) {}
+            return;
+        }
+
+        const badges = {};
+
+        // --- checker.json のイベント更新チェック ---
+        try {
+            const res  = await fetch(CHECKER_EVENTS_URL + '?_=' + Date.now(), { cache: 'no-store' });
+            if (res.ok) {
+                const data       = await res.json();
+                const snapshot   = JSON.stringify(data);
+                const prevSnap   = localStorage.getItem(STORE_KEY_CHECKER);
+                if (prevSnap && prevSnap !== snapshot) {
+                    // 差分チェック：日課以外のイベントに変化があるか確認
+                    let prevData, nonDailyChanged = false, anyChanged = true;
+                    try {
+                        prevData = JSON.parse(prevSnap);
+                        // イベントIDセットの差分
+                        const prevIds = new Set((prevData.events || []).map(e => e.id));
+                        const newIds  = new Set((data.events   || []).map(e => e.id));
+                        const prevNonDaily = (prevData.events || []).filter(e => e.resetType !== 'daily').map(e => e.id + e.endDateTime).join(',');
+                        const newNonDaily  = (data.events     || []).filter(e => e.resetType !== 'daily').map(e => e.id + e.endDateTime).join(',');
+                        nonDailyChanged = prevNonDaily !== newNonDaily;
+                    } catch(e) { nonDailyChanged = true; }
+                    badges['Checker'] = nonDailyChanged ? 'checker-nondaily' : 'checker';
+                }
+                localStorage.setItem(STORE_KEY_CHECKER, snapshot);
+            }
+        } catch(e) {}
+
+        // 必要に応じて他ツールのチェックをここに追加できる
+
+        // 結果保存・反映
+        localStorage.setItem(STORE_KEY_DATE,   today);
+        localStorage.setItem('dqx_bg_badges', JSON.stringify(badges));
+        Object.assign(window.DQX_CARD_BADGES, badges);
+    }
+
+    // ページロード時（ローディング中）に実行
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runChecks);
+    } else {
+        runChecks();
+    }
+})();
+
+// ========== リリースノート ==========
+// release-notes.json から非同期で読み込む
+window.DQX_RELEASE_NOTES = [];
+window.DQX_RELEASE_NOTES_PROMISE = fetch('./release-notes.json?v=' + Date.now(), { cache: 'no-store' })
+    .then((r) => r.ok ? r.json() : null)
+    .then((data) => {
+        if (data && Array.isArray(data.releases)) {
+            window.DQX_RELEASE_NOTES = data.releases;
+        }
+        return window.DQX_RELEASE_NOTES;
+    })
+    .catch(() => window.DQX_RELEASE_NOTES);
 
 // ========== renderFn ホワイトリスト ==========
 // tool.renderFn に指定できるグローバルアクセスパターンを制限する。
@@ -93,7 +256,14 @@ const DQXTools = {
             'dqx_material_prices',
             'dqx_sidebar_visible',
             'dqx_known_tool_ids',
-            'dqx_manifest_version'
+            'dqx_manifest_version',
+            // バックグラウンドチェック関連
+            'dqx_bg_checker_snapshot',
+            'dqx_bg_exp_snapshot',
+            'dqx_bg_check_date',
+            'dqx_bg_badges',
+            // ローディング画面表示日
+            'dqx_loading_shown_ls',
         ];
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const key = localStorage.key(i);
@@ -110,7 +280,7 @@ const DQXTools = {
             }
         }
 
-        const allowedSession = ['dqx_reload_count', 'dqx_test_token'];
+        const allowedSession = ['dqx_reload_count', 'dqx_test_token', 'dqx_loading_shown_date'];
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
             const key = sessionStorage.key(i);
             if (!key) continue;
@@ -202,10 +372,20 @@ const DQXTools = {
 
         const cardButtons = toolEntries.map(([id, tool]) => {
             const isDisabled = tool.requiresToken && !isValidToken;
+            const badge      = window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[id];
+            let badgeHtml    = '';
+            if (badge === 'checker-nondaily') {
+                badgeHtml = '<span class="card-badge card-badge-orange" title="コンテンツ（日課以外）に更新あり">●</span>';
+            } else if (badge === 'checker') {
+                badgeHtml = '<span class="card-badge card-badge-yellow" title="コンテンツに更新あり">●</span>';
+            } else if (badge) {
+                badgeHtml = '<span class="card-badge card-badge-yellow" title="更新あり">●</span>';
+            }
             return `
                 <div class="tool-card ${isDisabled ? 'tool-card-disabled' : ''}"
                      data-tool-id="${id}"
                      data-requires-token="${tool.requiresToken || false}">
+                    ${badgeHtml}
                     <div class="tool-card-icon">${tool.icon || '🔧'}</div>
                     <div class="tool-card-name">${tool.name}</div>
                     <div class="tool-card-desc">${tool.desc || ''}</div>
@@ -232,7 +412,13 @@ const DQXTools = {
                         <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
                         <button id="footer-reload-btn" class="footer-reload-btn" type="button" title="設定の最新版を確認して更新">↻</button>
                     </div>
-                    <div class="footer-copyright">© 2026 yuffy_rre</div>
+                    <div class="footer-row footer-meta-row">
+                        <button id="footer-releasenotes-btn" class="footer-text-btn" type="button">📋 リリースノート</button>
+                    </div>
+                    <div class="footer-copyright">
+                        このページで利用している株式会社スクウェア・エニックスを代表とする共同著作者が権利を所有する画像の転載・配布は禁止いたします。<br>
+                        &copy; ARMOR PROJECT/BIRD STUDIO/SQUARE ENIX All Rights Reserved.
+                    </div>
                 </div>
             </div>`;
 
@@ -284,6 +470,9 @@ const DQXTools = {
                 window.dqxShowToast('最新状態を確認できませんでした。');
             }
         };
+
+        // リリースノートボタン
+        document.getElementById('footer-releasenotes-btn').onclick = () => this.openReleaseNotesModal();
 
         // カードクリック
         this.container.querySelectorAll('.tool-card').forEach((card) => {
@@ -387,7 +576,12 @@ const DQXTools = {
             try { return stored ? JSON.parse(stored) : null; } catch (e) { return null; }
         };
         let visible = loadVisible();
-        const allIds = Object.keys(this.tools).sort();
+        // hideInMenu=true かつ requiresToken=false のもの（installなど）は除外
+        // テストツール（requiresToken=true）はカードに表示されるので残す
+        const allIds = Object.keys(this.tools).filter((id) => {
+            const t = this.tools[id];
+            return !(t.hideInMenu && !t.requiresToken);
+        }).sort();
 
         const renderList = () => {
             listContainer.innerHTML = '';
@@ -436,6 +630,71 @@ const DQXTools = {
             modal.remove();
             this.showLauncher();
         };
+    },
+
+    openReleaseNotesModal: function() {
+        if (document.getElementById('dqx-releasenotes-modal')) return;
+
+        const open = (notes) => {
+            const notesHtml = (notes || []).map((entry) => {
+                const items = (entry.notes || []).map((n) => `<li>${n}</li>`).join('');
+                return `
+                    <div class="rn-entry">
+                        <div class="rn-header">
+                            <span class="rn-version">v${entry.version}</span>
+                            <span class="rn-date">${entry.date}</span>
+                        </div>
+                        <ul class="rn-list">${items}</ul>
+                    </div>`;
+            }).join('');
+
+            const isDark = document.body.classList.contains('dark-mode');
+            const modal  = document.createElement('div');
+            modal.id     = 'dqx-releasenotes-modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:30000;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+
+            const sheet = document.createElement('div');
+            sheet.style.cssText = [
+                `background:${isDark ? '#1e293b' : '#fff'};`,
+                'width:100%;max-width:680px;max-height:80vh;',
+                'border-radius:16px 16px 0 0;',
+                'display:flex;flex-direction:column;',
+                'box-shadow:0 -4px 24px rgba(0,0,0,0.25);',
+            ].join('');
+
+            const header = document.createElement('div');
+            header.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid ${isDark ? '#334155' : '#e2e8f0'};flex-shrink:0;`;
+            header.innerHTML = `<span style="font-weight:700;font-size:16px;color:${isDark ? '#e2e8f0' : '#1e293b'};">📋 リリースノート</span>`;
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '✕';
+            closeBtn.style.cssText = `background:${isDark ? '#334155' : '#f1f5f9'};border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;color:${isDark ? '#e2e8f0' : '#64748b'};`;
+            closeBtn.onclick = () => modal.remove();
+            header.appendChild(closeBtn);
+
+            const body = document.createElement('div');
+            body.style.cssText = 'overflow-y:auto;padding:16px 20px 24px;flex:1;';
+            body.innerHTML = `
+                <style>
+                    .rn-entry { margin-bottom:20px; }
+                    .rn-header { display:flex;align-items:center;gap:10px;margin-bottom:6px; }
+                    .rn-version { font-weight:700;font-size:14px;color:${isDark ? '#60a5fa' : '#0066cc'}; }
+                    .rn-date { font-size:12px;color:#94a3b8; }
+                    .rn-list { margin:0;padding-left:20px; }
+                    .rn-list li { font-size:13px;line-height:1.7;color:${isDark ? '#cbd5e1' : '#374151'}; }
+                </style>
+                ${notesHtml || '<p style="color:#94a3b8;font-size:13px;">リリースノートはありません。</p>'}
+            `;
+
+            sheet.appendChild(header);
+            sheet.appendChild(body);
+            modal.appendChild(sheet);
+            document.body.appendChild(modal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        };
+
+        // フェッチ完了を待ってから開く（既に完了済みなら即時）
+        const p = window.DQX_RELEASE_NOTES_PROMISE || Promise.resolve(window.DQX_RELEASE_NOTES);
+        p.then((notes) => open(notes || window.DQX_RELEASE_NOTES));
     },
 
     renderToolMenu: function() {
@@ -609,6 +868,16 @@ const DQXTools = {
     loadTool: async function(toolId) {
         const tool = this.tools[toolId];
         if (!tool || this.currentTool === toolId) return;
+
+        // バッジクリア
+        if (window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[toolId]) {
+            delete window.DQX_CARD_BADGES[toolId];
+            try {
+                const saved = JSON.parse(localStorage.getItem('dqx_bg_badges') || '{}');
+                delete saved[toolId];
+                localStorage.setItem('dqx_bg_badges', JSON.stringify(saved));
+            } catch(e) {}
+        }
 
         if (window.dqxCheckVersion) window.dqxCheckVersion();
 

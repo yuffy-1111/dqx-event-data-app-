@@ -115,7 +115,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.2.1β+';
+        window.HTML_VERSION = '1.1.7β+';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -315,7 +315,10 @@
                         ? window.dqxCompareVersions(remoteVer, storedVer)
                         : 0;
                     window.DQX_NET_STATE = cmp > 0 ? 'update' : 'latest';
-                    if (cmp <= 0) setStoredManifestVersion(remoteVer);
+                    // remoteVer が新しい場合（cmp > 0）も含め、常に最新バージョンを保存する。
+                    // 修正前は cmp <= 0 のみ保存していたため、アップデートがある場合に
+                    // storedVer が更新されず、次回以降も永遠に 'update' 状態になるバグがあった。
+                    setStoredManifestVersion(remoteVer);
                     window.dqxUpdateNetIndicator();
                     return data;
                 })
