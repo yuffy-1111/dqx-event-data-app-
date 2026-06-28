@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.1.9β+';
+const CACHE_VERSION = '1.2.0β+';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -22,7 +22,6 @@ const PRECACHE_URLS = [
     './launcher.js',
     './launcher.css',
     './manifest.webmanifest',
-    './tools-manifest.json',
     './tools/checker.js',
     './tools/expmercenary.js',
     './tools/version_selector.js',
@@ -41,8 +40,7 @@ const NEVER_CACHE_PATTERNS = [
 // 常に最新をサーバーから取得する必要がある
 const NETWORK_FIRST_PATTERNS = [
     /\/index\.html$/,
-    /\/launcher\.js$/,
-    /\/tools-manifest\.json$/
+    /\/launcher\.js$/
 ];
 
 function shouldBypassCache(url) {
@@ -106,7 +104,19 @@ self.addEventListener('fetch', (event) => {
 
     // 認証付き・テストツールは完全素通し
     if (shouldBypassCache(url)) return;
-
+    // tools-manifest.json は常にネットワークから取得（SWキャッシュ対象外）
+    if (normalizedUrl.endsWith('/tools-manifest.json')) {
+    event.respondWith(
+        fetch(req, { cache: 'no-store' })
+            .catch(() => {
+                return new Response(null, {
+                    status: 503,
+                    statusText: 'Offline'
+                                          });
+                             })
+     );
+    return;
+}
     // ===== network-first =====
     // index.html / launcher.js / tools-manifest.json
     // → 常にサーバーへ。失敗（オフライン）時のみキャッシュから返す
