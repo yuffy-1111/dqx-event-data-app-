@@ -1,6 +1,6 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新",
-  "launcherVersion": "1.2.0β+",
+  "launcherVersion": "1.2.1β+",
   "updatedAt": "2026-06-28",
   "tools": [
     {
