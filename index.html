@@ -115,7 +115,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.9β+';
+        window.HTML_VERSION = '1.0.0s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -461,9 +461,12 @@ function registerAllTools(manifestData) {
 }
 
 window.addEventListener('load', function() {
-    window.DQX_MANIFEST_FETCH_PROMISE
-        .then((data) => registerAllTools(data))
-        .catch(()    => registerAllTools(null));
+    // バッジデータ（DQX_CARD_BADGES）が確定してから描画するため
+    // DQX_BG_CHECK_PROMISE と DQX_MANIFEST_FETCH_PROMISE を両方待つ
+    Promise.all([
+        window.DQX_MANIFEST_FETCH_PROMISE.catch(() => null),
+        window.DQX_BG_CHECK_PROMISE.catch(() => {})
+    ]).then(([data]) => registerAllTools(data));
 });
 </script>
 <!-- デバッグツール（?debug=1 または ?eruda で有効） -->

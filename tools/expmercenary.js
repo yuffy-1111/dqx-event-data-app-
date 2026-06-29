@@ -1,6 +1,6 @@
 // ========== 傭兵用多機能ツール ver2.3.0 ==========
 // ベース: ver2.2.0 統合
-// [CSS]    インラインstyleを全廃し、クラスベース設計思想で再定義
+// [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
 // [QUAL]   基本的な動作ロジックは2.1.0から変更なし（ver2.2.0時点）
 // [LOGIC]  経験値計算を実測値ベースに修正: applyLimit 廃止 → floor + fdBonus 方式に変更（ver2.3.0）
