@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.8β+';
+const APP_VERSION = '1.1.9β+';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -432,8 +432,10 @@ const DQXTools = {
                 </div>
                 <div class="home-footer">
                     <div class="footer-row">
-                        <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
-                        <button id="footer-releasenotes-btn" class="footer-text-btn" type="button">📋 リリースノート</button>
+                        <div class="footer-row-left">
+                            <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
+                            <button id="footer-releasenotes-btn" class="footer-text-btn" type="button">📋 リリースノート</button>
+                        </div>
                         <button id="footer-reload-btn" class="footer-reload-btn" type="button" title="設定の最新版を確認して更新">↻</button>
                     </div>
                     <div class="footer-copyright">
