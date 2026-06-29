@@ -1,6 +1,6 @@
 {
-  "name": "ユッフィーのDQXツールラボ",
-  "short_name": "ユッフィーのDQXツールラボ",
+  "name": "ユッフィーのDQXツール",
+  "short_name": "yuffy tools",
   "description": "DQX用ツールセット",
   "start_url": "./index.html",
   "display": "standalone",

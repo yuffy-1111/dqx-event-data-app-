@@ -1,12 +1,118 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.7β+';
+const APP_VERSION = '1.1.8β+';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
 window.dispatchEvent(new Event('launcher-ready'));
 
+// ========== JST 日付キー（6時リセット） ==========
+function dqxGetJSTDateKey() {
+    const now = new Date();
+    const jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+    if (jst.getHours() < 6) jst.setDate(jst.getDate() - 1);
+    return `${jst.getFullYear()}-${jst.getMonth() + 1}-${jst.getDate()}`;
+}
+
+// ========== バックグラウンドコンテンツチェック ==========
+// SW キャッシュ経由でツール JS を取得し前回スナップショットと差分比較。
+// オンライン・オフライン問わず動作（SW がキャッシュを持っている限り fetch 成功）。
+window.DQX_CARD_BADGES = {};
+window.DQX_BG_CHECK_PROMISE = (function() {
+
+    const TOOL_FILES = [
+        { id: 'Checker',  url: './tools/checker.js'          },
+        { id: 'exp-m',    url: './tools/expmercenary.js'     },
+        { id: 'versions', url: './tools/version_selector.js' },
+        { id: 'help',     url: './tools/help.js'             },
+        { id: 'settings', url: './tools/settings.js'         },
+        { id: 'install',  url: './tools/install.js'          },
+    ];
+
+    const CHECKER_EVENTS_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
+    const KEY_TOOL_SNAP    = 'dqx_bg_tool_snaps';
+    const KEY_CHECKER_SNAP = 'dqx_bg_checker_snap';
+    const KEY_CHECK_DATE   = 'dqx_bg_check_date';
+    const KEY_BADGES       = 'dqx_bg_badges';
+
+    function quickHash(text) {
+        const tail = text.slice(-256);
+        return text.length + ':' + tail;
+    }
+
+    function loadToolSnaps() {
+        try { return JSON.parse(localStorage.getItem(KEY_TOOL_SNAP) || '{}'); }
+        catch(e) { return {}; }
+    }
+    function saveToolSnaps(snaps) {
+        try { localStorage.setItem(KEY_TOOL_SNAP, JSON.stringify(snaps)); } catch(e) {}
+    }
+
+    async function runChecks() {
+        const today   = dqxGetJSTDateKey();
+        const checked = localStorage.getItem(KEY_CHECK_DATE);
+
+        if (checked === today) {
+            try {
+                const saved = JSON.parse(localStorage.getItem(KEY_BADGES) || '{}');
+                Object.assign(window.DQX_CARD_BADGES, saved);
+            } catch(e) {}
+            return window.DQX_CARD_BADGES;
+        }
+
+        const prevSnaps  = loadToolSnaps();
+        const newSnaps   = {};
+        const badges     = {};
+        const isFirstRun = Object.keys(prevSnaps).length === 0;
+
+        await Promise.all(TOOL_FILES.map(async ({ id, url }) => {
+            try {
+                const res = await fetch(url, { cache: 'default' });
+                if (!res.ok) return;
+                const text = await res.text();
+                const hash = quickHash(text);
+                newSnaps[id] = hash;
+                if (!isFirstRun && prevSnaps[id] && prevSnaps[id] !== hash) {
+                    if (id !== 'install') badges[id] = 'yellow';
+                }
+            } catch(e) {}
+        }));
+
+        try {
+            const res = await fetch(CHECKER_EVENTS_URL, { cache: 'no-store' });
+            if (res.ok) {
+                const data     = await res.json();
+                const snapshot = JSON.stringify(data);
+                const prevSnap = localStorage.getItem(KEY_CHECKER_SNAP);
+                if (!isFirstRun && prevSnap && prevSnap !== snapshot) {
+                    // 日課以外（非 daily）のイベントに変化がある場合のみオレンジバッジ
+                    // daily のみの変化はバッジなし
+                    let nonDailyChanged = false;
+                    try {
+                        const prev = JSON.parse(prevSnap);
+                        const sig = (evts) => (evts || [])
+                            .filter(e => e.resetType !== 'daily')
+                            .map(e => e.id + '|' + e.endDateTime)
+                            .sort().join(',');
+                        nonDailyChanged = sig(prev.events) !== sig(data.events);
+                    } catch(e) { nonDailyChanged = true; }
+                    if (nonDailyChanged) badges['Checker'] = 'checker-nondaily';
+                    // daily のみ変化 → バッジなし（何もしない）
+                }
+                try { localStorage.setItem(KEY_CHECKER_SNAP, snapshot); } catch(e) {}
+            }
+        } catch(e) {}
+
+        saveToolSnaps(newSnaps);
+        try { localStorage.setItem(KEY_CHECK_DATE, today); } catch(e) {}
+        try { localStorage.setItem(KEY_BADGES, JSON.stringify(badges)); } catch(e) {}
+        Object.assign(window.DQX_CARD_BADGES, badges);
+        return window.DQX_CARD_BADGES;
+    }
+
+    return runChecks();
+})();
+
 // ========== ローディング画面 ==========
-// 毎日JST6時を境目に、1日1回だけ表示する
 (function() {
     const IMAGES = [
         './images/dqx_loading.jpg',
@@ -16,28 +122,16 @@ window.dispatchEvent(new Event('launcher-ready'));
         './images/dqx_loading5.jpg',
     ];
 
-    function getJSTDateKey() {
-        const now = new Date();
-        const jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
-        if (jst.getHours() < 6) jst.setDate(jst.getDate() - 1);
-        return `${jst.getFullYear()}-${jst.getMonth() + 1}-${jst.getDate()}`;
-    }
+    const today  = dqxGetJSTDateKey();
+    const SS_KEY = 'dqx_loading_shown_date';
+    const LS_KEY = 'dqx_loading_shown_ls';
 
-    const today    = getJSTDateKey();
-    const storeKey = 'dqx_loading_shown_date';
-    const shown    = sessionStorage.getItem(storeKey);
-    if (shown === today) return; // 同セッション内で今日すでに表示済み
-
-    // 日付が変わっていたら表示フラグをリセット
-    const lsKey     = 'dqx_loading_shown_ls';
-    const lsShown   = localStorage.getItem(lsKey);
-    if (lsShown === today) {
-        // 同じカレンダー日だが別セッション → 本日分は表示済みとして skip
-        sessionStorage.setItem(storeKey, today);
+    if (sessionStorage.getItem(SS_KEY) === today) return;
+    if (localStorage.getItem(LS_KEY) === today) {
+        sessionStorage.setItem(SS_KEY, today);
         return;
     }
 
-    // 画像をランダム選択
     const img = IMAGES[Math.floor(Math.random() * IMAGES.length)];
 
     const overlay = document.createElement('div');
@@ -45,115 +139,44 @@ window.dispatchEvent(new Event('launcher-ready'));
     overlay.style.cssText = [
         'position:fixed;inset:0;z-index:99999;',
         'display:flex;flex-direction:column;align-items:center;justify-content:center;',
-        'background:#000;',
-        'transition:opacity 0.6s ease;',
+        'background:#000;transition:opacity 0.6s ease;',
     ].join('');
 
     const imgEl = document.createElement('img');
     imgEl.src   = img;
     imgEl.style.cssText = 'max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px;';
-    imgEl.alt   = 'Loading…';
+    imgEl.alt   = '';
 
     const label = document.createElement('div');
-    label.textContent   = 'Now Loading…';
+    label.textContent   = 'Now Loading\u2026';
     label.style.cssText = 'color:#aaa;font-size:13px;margin-top:16px;letter-spacing:.1em;';
 
     overlay.appendChild(imgEl);
     overlay.appendChild(label);
-    document.body.appendChild(overlay);
 
-    // 記録
-    sessionStorage.setItem(storeKey, today);
-    localStorage.setItem(lsKey, today);
+    if (document.body) {
+        document.body.appendChild(overlay);
+    } else {
+        document.addEventListener('DOMContentLoaded', () => document.body.appendChild(overlay));
+    }
 
-    // 2秒後にフェードアウトして除去（バックグラウンド処理の完了を待たず視覚的に消す）
-    setTimeout(() => {
-        overlay.style.opacity = '0';
-        setTimeout(() => overlay.remove(), 650);
-    }, 2000);
+    sessionStorage.setItem(SS_KEY, today);
+    localStorage.setItem(LS_KEY, today);
 
-    // 公開：外部からロード画面を閉じたいとき
-    window.dqxCloseLoadingOverlay = function() {
+    function closeOverlay() {
         if (!overlay.parentNode) return;
         overlay.style.opacity = '0';
         setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 650);
-    };
+    }
+
+    // バックグラウンドチェック完了 OR 最低2秒のどちらか遅い方で閉じる
+    const minWait = new Promise(r => setTimeout(r, 2000));
+    Promise.all([window.DQX_BG_CHECK_PROMISE.catch(() => {}), minWait])
+        .then(closeOverlay);
+
+    window.dqxCloseLoadingOverlay = closeOverlay;
 })();
 
-// ========== バックグラウンドコンテンツチェック ==========
-// ロード中にサイレントでツールデータを取得し、更新があればカードにバッジを立てる
-window.DQX_CARD_BADGES = {}; // { toolId: 'yellow' | 'checker' }
-
-(function() {
-    const CHECKER_EVENTS_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
-    const STORE_KEY_CHECKER  = 'dqx_bg_checker_snapshot';
-    const STORE_KEY_EXP      = 'dqx_bg_exp_snapshot';
-    const STORE_KEY_DATE     = 'dqx_bg_check_date';
-    const RESET_HOUR         = 6;
-
-    function getJSTDateKey() {
-        const now = new Date();
-        const jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
-        if (jst.getHours() < RESET_HOUR) jst.setDate(jst.getDate() - 1);
-        return `${jst.getFullYear()}-${jst.getMonth() + 1}-${jst.getDate()}`;
-    }
-
-    async function runChecks() {
-        if (!navigator.onLine) return;
-        const today   = getJSTDateKey();
-        const checked = localStorage.getItem(STORE_KEY_DATE);
-        // 同日はスキップ（バッジは維持）
-        if (checked === today) {
-            // 前回の結果からバッジを復元
-            try {
-                const badges = JSON.parse(localStorage.getItem('dqx_bg_badges') || '{}');
-                Object.assign(window.DQX_CARD_BADGES, badges);
-            } catch(e) {}
-            return;
-        }
-
-        const badges = {};
-
-        // --- checker.json のイベント更新チェック ---
-        try {
-            const res  = await fetch(CHECKER_EVENTS_URL + '?_=' + Date.now(), { cache: 'no-store' });
-            if (res.ok) {
-                const data       = await res.json();
-                const snapshot   = JSON.stringify(data);
-                const prevSnap   = localStorage.getItem(STORE_KEY_CHECKER);
-                if (prevSnap && prevSnap !== snapshot) {
-                    // 差分チェック：日課以外のイベントに変化があるか確認
-                    let prevData, nonDailyChanged = false, anyChanged = true;
-                    try {
-                        prevData = JSON.parse(prevSnap);
-                        // イベントIDセットの差分
-                        const prevIds = new Set((prevData.events || []).map(e => e.id));
-                        const newIds  = new Set((data.events   || []).map(e => e.id));
-                        const prevNonDaily = (prevData.events || []).filter(e => e.resetType !== 'daily').map(e => e.id + e.endDateTime).join(',');
-                        const newNonDaily  = (data.events     || []).filter(e => e.resetType !== 'daily').map(e => e.id + e.endDateTime).join(',');
-                        nonDailyChanged = prevNonDaily !== newNonDaily;
-                    } catch(e) { nonDailyChanged = true; }
-                    badges['Checker'] = nonDailyChanged ? 'checker-nondaily' : 'checker';
-                }
-                localStorage.setItem(STORE_KEY_CHECKER, snapshot);
-            }
-        } catch(e) {}
-
-        // 必要に応じて他ツールのチェックをここに追加できる
-
-        // 結果保存・反映
-        localStorage.setItem(STORE_KEY_DATE,   today);
-        localStorage.setItem('dqx_bg_badges', JSON.stringify(badges));
-        Object.assign(window.DQX_CARD_BADGES, badges);
-    }
-
-    // ページロード時（ローディング中）に実行
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', runChecks);
-    } else {
-        runChecks();
-    }
-})();
 
 // ========== リリースノート ==========
 // release-notes.json から非同期で読み込む
@@ -258,8 +281,8 @@ const DQXTools = {
             'dqx_known_tool_ids',
             'dqx_manifest_version',
             // バックグラウンドチェック関連
-            'dqx_bg_checker_snapshot',
-            'dqx_bg_exp_snapshot',
+            'dqx_bg_tool_snaps',
+            'dqx_bg_checker_snap',
             'dqx_bg_check_date',
             'dqx_bg_badges',
             // ローディング画面表示日
@@ -375,11 +398,11 @@ const DQXTools = {
             const badge      = window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[id];
             let badgeHtml    = '';
             if (badge === 'checker-nondaily') {
-                badgeHtml = '<span class="card-badge card-badge-orange" title="コンテンツ（日課以外）に更新あり">●</span>';
-            } else if (badge === 'checker') {
-                badgeHtml = '<span class="card-badge card-badge-yellow" title="コンテンツに更新あり">●</span>';
+                // checker.json の日課以外イベントに更新あり → オレンジ
+                badgeHtml = '<span class="card-badge card-badge-orange" title="イベント情報に更新あり（日課以外）">●</span>';
             } else if (badge) {
-                badgeHtml = '<span class="card-badge card-badge-yellow" title="更新あり">●</span>';
+                // ツール JS ファイルに差分あり → 黄色
+                badgeHtml = '<span class="card-badge card-badge-yellow" title="ツールが更新されました">●</span>';
             }
             return `
                 <div class="tool-card ${isDisabled ? 'tool-card-disabled' : ''}"
@@ -396,7 +419,7 @@ const DQXTools = {
         this.container.innerHTML = `
             <div class="home-container">
                 <div class="home-header">
-                    <h1 class="home-title">DQXツールラボ</h1>
+                    <h1 class="home-title">yuffy tools</h1>
                     <div class="home-header-actions">
                         <button id="open-manage-link" class="manage-btn">カード編集</button>
                         <button id="global-dark-toggle" class="dark-toggle-btn">${this.darkMode ? '☀️' : '🌙'}</button>
@@ -410,10 +433,8 @@ const DQXTools = {
                 <div class="home-footer">
                     <div class="footer-row">
                         <a href="#" id="footer-install-link" class="footer-install-link">📲 アプリとして使う方法</a>
-                        <button id="footer-reload-btn" class="footer-reload-btn" type="button" title="設定の最新版を確認して更新">↻</button>
-                    </div>
-                    <div class="footer-row footer-meta-row">
                         <button id="footer-releasenotes-btn" class="footer-text-btn" type="button">📋 リリースノート</button>
+                        <button id="footer-reload-btn" class="footer-reload-btn" type="button" title="設定の最新版を確認して更新">↻</button>
                     </div>
                     <div class="footer-copyright">
                         このページで利用している株式会社スクウェア・エニックスを代表とする共同著作者が権利を所有する画像の転載・配布は禁止いたします。<br>
@@ -637,53 +658,45 @@ const DQXTools = {
 
         const open = (notes) => {
             const notesHtml = (notes || []).map((entry) => {
-                const items = (entry.notes || []).map((n) => `<li>${n}</li>`).join('');
-                return `
-                    <div class="rn-entry">
-                        <div class="rn-header">
-                            <span class="rn-version">v${entry.version}</span>
-                            <span class="rn-date">${entry.date}</span>
-                        </div>
-                        <ul class="rn-list">${items}</ul>
-                    </div>`;
+                const items = (entry.notes || []).map((n) => '<li>' + n + '</li>').join('');
+                return (
+                    '<div class="rn-entry">'
+                    + '<div class="rn-header">'
+                    + '<span class="rn-version">v' + entry.version + '</span>'
+                    + '<span class="rn-date">' + entry.date + '</span>'
+                    + '</div>'
+                    + '<ul class="rn-list">' + items + '</ul>'
+                    + '</div>'
+                );
             }).join('');
 
-            const isDark = document.body.classList.contains('dark-mode');
-            const modal  = document.createElement('div');
-            modal.id     = 'dqx-releasenotes-modal';
-            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:30000;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+            const modal = document.createElement('div');
+            modal.id        = 'dqx-releasenotes-modal';
+            modal.className = 'rn-modal-overlay';
 
             const sheet = document.createElement('div');
-            sheet.style.cssText = [
-                `background:${isDark ? '#1e293b' : '#fff'};`,
-                'width:100%;max-width:680px;max-height:80vh;',
-                'border-radius:16px 16px 0 0;',
-                'display:flex;flex-direction:column;',
-                'box-shadow:0 -4px 24px rgba(0,0,0,0.25);',
-            ].join('');
+            sheet.className = 'rn-sheet';
 
             const header = document.createElement('div');
-            header.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid ${isDark ? '#334155' : '#e2e8f0'};flex-shrink:0;`;
-            header.innerHTML = `<span style="font-weight:700;font-size:16px;color:${isDark ? '#e2e8f0' : '#1e293b'};">📋 リリースノート</span>`;
+            header.className = 'rn-sheet-header';
+
+            const title = document.createElement('span');
+            title.className   = 'rn-sheet-title';
+            title.textContent = '📋 リリースノート';
+
             const closeBtn = document.createElement('button');
+            closeBtn.className   = 'rn-close-btn';
             closeBtn.textContent = '✕';
-            closeBtn.style.cssText = `background:${isDark ? '#334155' : '#f1f5f9'};border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;color:${isDark ? '#e2e8f0' : '#64748b'};`;
+            closeBtn.setAttribute('aria-label', '閉じる');
             closeBtn.onclick = () => modal.remove();
+
+            header.appendChild(title);
             header.appendChild(closeBtn);
 
             const body = document.createElement('div');
-            body.style.cssText = 'overflow-y:auto;padding:16px 20px 24px;flex:1;';
-            body.innerHTML = `
-                <style>
-                    .rn-entry { margin-bottom:20px; }
-                    .rn-header { display:flex;align-items:center;gap:10px;margin-bottom:6px; }
-                    .rn-version { font-weight:700;font-size:14px;color:${isDark ? '#60a5fa' : '#0066cc'}; }
-                    .rn-date { font-size:12px;color:#94a3b8; }
-                    .rn-list { margin:0;padding-left:20px; }
-                    .rn-list li { font-size:13px;line-height:1.7;color:${isDark ? '#cbd5e1' : '#374151'}; }
-                </style>
-                ${notesHtml || '<p style="color:#94a3b8;font-size:13px;">リリースノートはありません。</p>'}
-            `;
+            body.className = 'rn-sheet-body';
+            body.innerHTML = notesHtml
+                || '<p class="rn-empty">リリースノートはありません。</p>';
 
             sheet.appendChild(header);
             sheet.appendChild(body);
@@ -692,7 +705,6 @@ const DQXTools = {
             modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         };
 
-        // フェッチ完了を待ってから開く（既に完了済みなら即時）
         const p = window.DQX_RELEASE_NOTES_PROMISE || Promise.resolve(window.DQX_RELEASE_NOTES);
         p.then((notes) => open(notes || window.DQX_RELEASE_NOTES));
     },
@@ -719,14 +731,10 @@ const DQXTools = {
                 <div class="tool-menu-scroll">${menuButtons}</div>
                 <div class="tool-menu-fixed">
                     <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
-                    <button class="tool-menu-btn dark-mode-btn" data-action="dark">
-                        ${this.darkMode ? '☀️' : '🌙'}<span class="menu-btn-label">${this.darkMode ? 'ライト' : 'ダーク'}</span>
-                    </button>
                 </div>
             `;
             document.body.appendChild(menuBar);
             menuBar.querySelector('[data-action="home"]').onclick  = () => this.goHome();
-            menuBar.querySelector('[data-action="dark"]').onclick  = () => this.toggleDarkMode();
             menuBar.querySelectorAll('.tool-menu-scroll .tool-menu-btn').forEach((btn) => {
                 btn.onclick = () => {
                     const toolId = btn.dataset.toolId;
@@ -742,15 +750,11 @@ const DQXTools = {
                 <div class="tool-menu-sidebar-fixed">
                     <button class="tool-menu-btn sidebar-toggle-btn" data-action="toggle-sidebar">◀<span class="menu-btn-label">閉じる</span></button>
                     <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
-                    <button class="tool-menu-btn dark-mode-btn" data-action="dark">
-                        ${this.darkMode ? '☀️' : '🌙'}<span class="menu-btn-label">${this.darkMode ? 'ライト' : 'ダーク'}</span>
-                    </button>
                 </div>
             `;
             document.body.appendChild(menuBar);
             menuBar.querySelector('[data-action="toggle-sidebar"]').onclick = () => this.toggleSidebar();
             menuBar.querySelector('[data-action="home"]').onclick           = () => this.goHome();
-            menuBar.querySelector('[data-action="dark"]').onclick           = () => this.toggleDarkMode();
             menuBar.querySelectorAll('.tool-menu-sidebar-scroll .tool-menu-btn').forEach((btn) => {
                 btn.onclick = () => {
                     const toolId = btn.dataset.toolId;

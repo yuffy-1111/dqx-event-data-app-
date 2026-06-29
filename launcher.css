@@ -331,7 +331,7 @@ body.dark-mode #manage-modal .manage-row {
     display: inline-block;
     color: #0066cc;
     text-decoration: none;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: bold;
     padding: 6px 14px;
     border-radius: 20px;
@@ -362,7 +362,7 @@ body.dark-mode #manage-modal .manage-row {
 
 .footer-copyright {
     color: #888;
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1.6;
 }
 
@@ -577,14 +577,6 @@ body.dark-mode .footer-install-link:hover {
 }
 
 .tool-menu-bottom .home-btn {
-    margin-top: 0;
-}
-
-.dark-mode-btn {
-    margin-top: 0;
-}
-
-.tool-menu-bottom .dark-mode-btn {
     margin-top: 0;
 }
 
@@ -836,4 +828,126 @@ body.dark-mode .ref-table-title {
     background: rgba(255, 255, 255, 0.08);
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ========== リリースノートモーダル ========== */
+.rn-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 30000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.rn-sheet {
+    background: #fff;
+    width: 100%;
+    max-width: 680px;
+    max-height: 80vh;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.rn-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.rn-sheet-title {
+    font-weight: 700;
+    font-size: 16px;
+    color: #1e293b;
+}
+
+.rn-close-btn {
+    background: #f1f5f9;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rn-close-btn:hover { background: #e2e8f0; }
+
+.rn-sheet-body {
+    overflow-y: auto;
+    padding: 16px 20px 24px;
+    flex: 1;
+}
+
+.rn-entry { margin-bottom: 20px; }
+
+.rn-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.rn-version {
+    font-weight: 700;
+    font-size: 14px;
+    color: #0066cc;
+}
+
+.rn-date {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.rn-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.rn-list li {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #374151;
+}
+
+.rn-empty {
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* ダークモード */
+body.dark-mode .rn-sheet {
+    background: #1e293b;
+}
+
+body.dark-mode .rn-sheet-header {
+    border-bottom-color: #334155;
+}
+
+body.dark-mode .rn-sheet-title {
+    color: #e2e8f0;
+}
+
+body.dark-mode .rn-close-btn {
+    background: #334155;
+    color: #e2e8f0;
+}
+body.dark-mode .rn-close-btn:hover { background: #475569; }
+
+body.dark-mode .rn-version {
+    color: #60a5fa;
+}
+
+body.dark-mode .rn-list li {
+    color: #cbd5e1;
 }
