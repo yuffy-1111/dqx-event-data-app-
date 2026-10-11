@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.2.0s';
+const CACHE_VERSION = '1.2.1s';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -125,19 +125,29 @@ self.addEventListener('fetch', (event) => {
     // → 常にサーバーへ。失敗（オフライン）時のみキャッシュから返す
     if (shouldNetworkFirst(normalizedUrl, req)) {
         event.respondWith(
-            fetch(req, { cache: 'no-store' })
-                .then((res) => {
+            (async () => {
+                try {
+                    const res = await fetch(req, { cache: 'no-store' });
                     if (res && res.status === 200) {
-                        const clone = res.clone();
                         const normReq = new Request(normalizeUrl(req.url));
-                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
+                        try {
+                            await caches.open(CACHE_NAME)
+                                .then((cache) => cache.put(normReq, res.clone()));
+                        } catch (e) {
+                            console.warn('[SW] network-first cache write failed:', e);
+                        }
                     }
                     return res;
-                })
-                .catch(() =>
-                    caches.match(normalizeUrl(req.url))
-                        .then((cached) => cached || caches.match('./index.html'))
-                )
+                } catch (e) {
+                    const cached = await caches.match(normalizeUrl(req.url));
+                    if (cached) return cached;
+                    if (req.mode === 'navigate') {
+                        const offlinePage = await caches.match('./index.html');
+                        if (offlinePage) return offlinePage;
+                    }
+                    throw e;
+                }
+            })()
         );
         return;
     }
@@ -152,20 +162,21 @@ self.addEventListener('fetch', (event) => {
     // 該当ツールだけ確実にキャッシュmiss→ネットワーク取得される。
     // verが同じ間はヒットし続けるので、通常時の速度は変わらない。
     const normReq = new Request(req.url);
+    const networkFetch = fetch(req)
+        .then(async (res) => {
+            if (res && res.status === 200) {
+                try {
+                    await caches.open(CACHE_NAME)
+                        .then((cache) => cache.put(normReq, res.clone()));
+                } catch (e) {
+                    console.warn('[SW] cache-first cache write failed:', e);
+                }
+            }
+            return res;
+        });
+    event.waitUntil(networkFetch.then(() => undefined, () => undefined));
     event.respondWith(
-        caches.match(normReq).then((cached) => {
-            const networkFetch = fetch(req)
-                .then((res) => {
-                    if (res && res.status === 200) {
-                        const clone = res.clone();
-                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
-                    }
-                    return res;
-                })
-                .catch(() => cached);
-
-            return cached || networkFetch;
-        })
+        caches.match(normReq).then((cached) => cached || networkFetch)
     );
 });
 
