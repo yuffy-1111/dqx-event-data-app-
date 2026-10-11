@@ -1,6 +1,7 @@
 // ========== アプリの使い方（ホーム画面インストール案内） ==========
 (function(global) {
     const Install = {
+        _renderedElements: {},
         _deferredPrompt: null,
         _onBeforeInstall: null,
         _onAppInstalled: null,
@@ -134,9 +135,13 @@
 
             const badge = document.getElementById('install-standalone-badge');
             if (badge) {
-                badge.innerHTML = isStandalone
-                    ? `<p class="install-already">✅ 現在、アプリとして起動しています。</p>`
-                    : '';
+                badge.replaceChildren();
+                if (isStandalone) {
+                    const p = document.createElement('p');
+                    p.className = 'install-already';
+                    p.textContent = '✅ 現在、アプリとして起動しています。';
+                    badge.appendChild(p);
+                }
             }
 
             const renderActionButtons = () => {
@@ -145,16 +150,20 @@
                     const el = document.getElementById(id);
                     if (!el) return;
                     if (self._deferredPrompt && !isStandalone) {
-                        el.innerHTML = `<button class="install-action-btn">${label}</button>`;
-                        el.querySelector('button').onclick = async () => {
+                        el.replaceChildren();
+                        const button = document.createElement('button');
+                        button.className = 'install-action-btn';
+                        button.textContent = label;
+                        button.onclick = async () => {
                             if (!self._deferredPrompt) return;
                             self._deferredPrompt.prompt();
-                            const choice = await self._deferredPrompt.userChoice;
+                            await self._deferredPrompt.userChoice;
                             self._deferredPrompt = null;
                             renderActionButtons();
                         };
+                        el.appendChild(button);
                     } else {
-                        el.innerHTML = '';
+                        el.replaceChildren();
                     }
                 });
             };
@@ -176,12 +185,18 @@
 
             const dlArea = document.getElementById('install-pc-download-area');
             if (dlArea) {
-                dlArea.innerHTML = `
-                    <div class="install-pc-download-links">
-                        <p class="install-note-inline">現在のブラウザでこのPWAをインストールできます。上部の「インストール」ボタンが表示されたら、それをクリックしてください。</p>
-                        <p class="install-note-inline">表示されない場合は、ブラウザメニューから「ホーム画面に追加」または「アプリをインストール」を選んでください。</p>
-                    </div>
-                `;
+                dlArea.replaceChildren();
+                const wrapper = document.createElement('div');
+                wrapper.className = 'install-pc-download-links';
+                const p1 = document.createElement('p');
+                p1.className = 'install-note-inline';
+                p1.textContent = '現在のブラウザでこのPWAをインストールできます。上部の「インストール」ボタンが表示されたら、それをクリックしてください。';
+                const p2 = document.createElement('p');
+                p2.className = 'install-note-inline';
+                p2.textContent = '表示されない場合は、ブラウザメニューから「ホーム画面に追加」または「アプリをインストール」を選んでください。';
+                wrapper.appendChild(p1);
+                wrapper.appendChild(p2);
+                dlArea.appendChild(wrapper);
             }
         },
 

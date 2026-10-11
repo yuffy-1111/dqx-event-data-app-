@@ -11,6 +11,65 @@
     <meta name="theme-color" content="#0066cc">
     <link rel="apple-touch-icon" href="./icons/icon-maskable-192.png">
     <link rel="stylesheet" href="launcher.css">
+    <script>
+        // スタンドアロン（ホーム画面に追加したアプリとして起動）かどうかを判定し、
+        // ブラウザのタブとして開いている場合にのみ .dqx-browser-mode を付与する。
+        // プルツーリフレッシュ防止CSSはこのクラスがある場合にのみ効く
+        // （スタンドアロンではその挙動自体が存在しないため不要）。
+        window.DQX_IS_BROWSER_MODE = (function() {
+            const isStandalone =
+                window.matchMedia('(display-mode: standalone)').matches ||
+                window.navigator.standalone === true; // iOS Safari
+            if (!isStandalone) {
+                document.documentElement.classList.add('dqx-browser-mode');
+            }
+            return !isStandalone;
+        })();
+
+        // CSSの overscroll-behavior だけでは防げないケース
+        // （LINE・X等のSNS内蔵ブラウザは独自のプルツーリフレッシュ実装を持ち、
+        //   overscroll-behavior を無視することがある）への保険として、
+        // ブラウザタブ表示時のみ、画面最上部から下方向に引っ張る操作を
+        // touchmove レベルでも抑止する。
+        // スタンドアロン時はそもそもこの挙動が存在しないため何もしない。
+        if (window.DQX_IS_BROWSER_MODE) {
+            // タッチ位置から「実際にスクロールを担当する要素」を辿って探す。
+            // 単純に document 全体のスクロール位置だけで判定すると、
+            // row-history やモーダル内など、ページ内にネストした
+            // スクロール領域（overflow-y: auto）を誤って巻き込んで
+            // 邪魔してしまうため、タッチ対象の祖先を遡って
+            // 実際にスクロール可能な要素を特定する。
+            function dqxFindScrollableAncestor(el) {
+                let node = el;
+                while (node && node !== document.body && node !== document.documentElement) {
+                    const style = window.getComputedStyle(node);
+                    if ((style.overflowY === 'auto' || style.overflowY === 'scroll')
+                        && node.scrollHeight > node.clientHeight) {
+                        return node;
+                    }
+                    node = node.parentElement;
+                }
+                return document.scrollingElement || document.documentElement;
+            }
+
+            let dqxTouchStartY = 0;
+            let dqxTouchScroller = null;
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length !== 1) return;
+                dqxTouchStartY = e.touches[0].clientY;
+                dqxTouchScroller = dqxFindScrollableAncestor(e.target);
+            }, { passive: true });
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length !== 1 || !dqxTouchScroller) return;
+                const dy = e.touches[0].clientY - dqxTouchStartY;
+                // 下方向に引っ張っていて、かつ該当スクロール領域が
+                // 既に一番上（これ以上上にスクロールできない）の場合のみ抑止する。
+                if (dy > 0 && dqxTouchScroller.scrollTop <= 0) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         * {
@@ -115,24 +174,18 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.0.0s';
+        window.HTML_VERSION = '1.1.8s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
 
-        // ========== Pull to Refresh 禁止 ==========
-        document.addEventListener('DOMContentLoaded', function() {
-            let touchStartY = 0;
-            document.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-            }, { passive: false });
-            document.addEventListener('touchmove', (e) => {
-                const touchY = e.touches[0].clientY;
-                if (touchY > touchStartY && window.scrollY === 0) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-        });
+        // Pull to Refresh 禁止は <head> 側の DQX_IS_BROWSER_MODE 判定つき
+        // touchmove ハンドラ（スクロール可能な祖先要素を辿って判定するもの）
+        // に一本化済み。ここにあった無条件版は、アプリ（standalone）表示時
+        // にも常に発動してしまい、かつスクロール可能な子要素の判定を持たず
+        // window.scrollY（ページ全体の位置）しか見ていなかったため、
+        // ツール内スクロール領域で下端まで行った後に上へ戻る操作まで誤って
+        // 抑制していた。この重複ハンドラが本来の症状の原因だったため削除。
 
         async function clearDqxCachesAndReload() {
             if ('caches' in window) {
@@ -150,7 +203,31 @@
             if ('serviceWorker' in navigator) {
                 try {
                     const reg = await navigator.serviceWorker.getRegistration();
-                    if (reg) await reg.update();
+                    if (reg) {
+                        await reg.update();
+                        // reg.update() は新SWのインストール開始を待つだけで、
+                        // activate（実際にページの制御を握る）までは待たない。
+                        // ここで待たずに reload すると、キャッシュだけ消えて
+                        // 制御はまだ旧SWのまま、という状態になり得るため、
+                        // controllerchange（新SWへの切り替わり）を待ってから reload する。
+                        // 新SWが存在しない/切り替わりが発生しないケースのフェイルセーフとして
+                        // タイムアウトも設定しておく。
+                        await new Promise((resolve) => {
+                            if (!navigator.serviceWorker.controller) {
+                                resolve();
+                                return;
+                            }
+                            const onChange = () => {
+                                navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+                                resolve();
+                            };
+                            navigator.serviceWorker.addEventListener('controllerchange', onChange);
+                            setTimeout(() => {
+                                navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+                                resolve();
+                            }, 2000);
+                        });
+                    }
                 } catch (e) {
                     console.warn('[SW] update failed', e);
                 }
@@ -293,18 +370,24 @@
         }
 
         // ========== バージョン確認（起動時・ツール遷移時に呼ぶ） ==========
+        // 【注意】navigator.onLine は「今まさに fetch が成功するか」を保証しない。
+        // 特にリロード直後は一瞬だけ不正確な値を返す実装があり、
+        // これに基づいて即座に 'offline' 扱いにすると、
+        // 実際はオンラインなのに誤ったオフライン通知が出てしまう（実際に観測された不具合）。
+        // そのため navigator.onLine には頼らず、実際に fetch を試みてその成否のみで判定する。
+        //
+        // また、起動直後の即時チェックと launcher-ready 時のチェックがほぼ同時に走ると
+        // 二重に fetch が発生し、後勝ちの結果次第で状態表示がちらつく／矛盾する。
+        // そのため実行中の Promise を使い回して二重発火を防ぐ。
+        window.DQX_CHECK_VERSION_INFLIGHT = null;
         window.dqxCheckVersion = function() {
-            if (!navigator.onLine) {
-                window.DQX_NET_STATE = 'offline';
-                window.dqxUpdateNetIndicator();
-                return Promise.resolve(null);
-            }
             if (window.DQX_NET_STATE === 'update') return Promise.resolve(null);
+            if (window.DQX_CHECK_VERSION_INFLIGHT) return window.DQX_CHECK_VERSION_INFLIGHT;
 
             window.DQX_NET_STATE = 'checking';
             window.dqxUpdateNetIndicator();
 
-            return fetch('./tools-manifest.json?v=' + Date.now(), { cache: 'no-store' })
+            const promise = fetch('./tools-manifest.json?v=' + Date.now(), { cache: 'no-store' })
                 .then((res) => { if (!res.ok) throw new Error(res.status); return res.json(); })
                 .then((data) => {
                     window.DQX_LAST_MANIFEST_CHECK = new Date();
@@ -328,7 +411,13 @@
                     window.DQX_NET_STATE = 'offline';
                     window.dqxUpdateNetIndicator();
                     return null;
+                })
+                .finally(() => {
+                    window.DQX_CHECK_VERSION_INFLIGHT = null;
                 });
+
+            window.DQX_CHECK_VERSION_INFLIGHT = promise;
+            return promise;
         };
 
         // launcher-ready 受信 → バージョン整合性チェック（1箇所に統合）
@@ -361,17 +450,91 @@
             .then((data) => {
                 if (data) {
                     window.DQX_REMOTE_MANIFEST = data;
-                } else if (!navigator.onLine) {
-                    document.addEventListener('DOMContentLoaded', function() {
-                        setTimeout(() => {
-                            window.dqxShowToast(
-                                'オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。'
-                            );
-                        }, 600);
-                    });
+                    return data;
                 }
-                return data;
+                // 初回チェックが失敗した場合、リロード直後などの一時的な
+                // ネットワーク不安定が原因の可能性があるため、
+                // 間を置いてもう1回だけ試してから「オフライン」と判断する。
+                // （navigator.onLine を信用した即断は誤検知の原因になっていたため廃止）
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        window.dqxCheckVersion().then((retryData) => {
+                            if (retryData) {
+                                window.DQX_REMOTE_MANIFEST = retryData;
+                                resolve(retryData);
+                                return;
+                            }
+                            document.addEventListener('DOMContentLoaded', function() {
+                                setTimeout(() => {
+                                    window.dqxShowToast(
+                                        'オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。'
+                                    );
+                                }, 600);
+                            });
+                            resolve(null);
+                        });
+                    }, 1500);
+                });
             });
+
+        // ========== バックグラウンド復帰時の再チェック ==========
+        // PWAをホーム画面アイコンから開き直した場合、既にサスペンドされていた
+        // ページがそのままフォアグラウンドに戻るだけで、実際のページ再読み込み
+        // （index.html/launcher.js の再実行）が発生しないケースがある。
+        // その場合 launcher-ready 起点のバージョンチェックや、起動時1回きりの
+        // バッジ差分チェックが一切再実行されず、内容が更新されていても
+        // 手動でリロードするまで反映されない問題があった。
+        // visibilitychange で可視化を検知し、軽量な再チェック（バッジ差分）と
+        // バージョンチェックを行い、更新があればキャッシュクリア込みで
+        // 強制リロードする。
+        let dqxLastResumeCheckTs = Date.now();
+        async function dqxOnResume() {
+            const now = Date.now();
+            // 短時間の連続発火（タブ切り替えの繰り返し等）を間引く
+            if (now - dqxLastResumeCheckTs < 60000) return;
+            dqxLastResumeCheckTs = now;
+
+            // バッジ差分の再チェック（フルリロード不要・軽量）
+            try {
+                if (typeof window.dqxRunBackgroundChecks === 'function'
+                    && (!window.DQXTools || window.DQXTools.currentTool === null)) {
+                    await window.dqxRunBackgroundChecks();
+                    // ホーム画面表示中なら再描画してバッジを反映する
+                    if (window.DQXTools && window.DQXTools.currentTool === null
+                        && typeof window.DQXTools.showLauncher === 'function') {
+                        window.DQXTools.showLauncher();
+                    }
+                }
+            } catch (e) {
+                console.warn('[resume] バッジ再チェック失敗', e);
+            }
+
+            // バージョンチェック（Safari PWA 等の強いキャッシュ対策も兼ねて
+            // 実際に fetch を試みる。更新があればフルリロード）
+            try {
+                await window.dqxCheckVersion();
+                if (window.DQX_NET_STATE === 'update') {
+                    window.dqxShowToast(
+                        '新しいバージョンが利用可能です。再読み込みします。',
+                        { duration: 2500 }
+                    );
+                    setTimeout(() => clearDqxCachesAndReload(), 2600);
+                    return;
+                }
+            } catch (e) {
+                console.warn('[resume] バージョンチェック失敗', e);
+            }
+
+            // 6時（JSTリセット）跨ぎの再チェック
+            // （ホーム画面に留まっている間は loadTool/goHome を経由しないため、
+            //   ここでも拾っておく）
+            if (typeof window.dqxCheckDateRollover === 'function') {
+                window.dqxCheckDateRollover();
+            }
+        }
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') dqxOnResume();
+        });
 
         // ========== メンテナンスモード ==========
         const START_DATE = new Date('2026-05-21T12:30:00');
@@ -399,6 +562,7 @@ const FALLBACK_TOOLS = [
     { id: 'Checker',  name: '進捗チェッカー',        icon: '📋', desc: '日課・週課・隔週・月課',              url: './tools/checker.js',          renderFn: 'Checker.render' },
     { id: 'exp-m',    name: '傭兵ログトラッカー',              icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js',      renderFn: 'Expmercenary.render' },
     { id: 'versions', name: '傭兵ログトラッカー<br>旧ver',     icon: '📜', desc: '旧verセレクタ',          url: './tools/version_selector.js',  renderFn: 'VersionSelector.render' },
+    { id: 'kaji',     name: '鍛冶職人シミュレーター',          icon: '🔨', desc: '鍛冶シミュレーター',     url: './tools/kaji.js',              renderFn: 'Kaji.render', defaultHidden: true },
     { id: 'help',     name: '取扱説明書',                      icon: '📖', desc: '使い方<br>Q&A',          url: './tools/help.js',              renderFn: 'Help.render' },
     { id: 'settings', name: '設定',                            icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js',     renderFn: 'Settings.render' },
     { id: 'install',  name: 'アプリの<br>使い方',              icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js',      renderFn: 'Install.render', hideInMenu: true }
@@ -419,12 +583,14 @@ function registerAllTools(manifestData) {
 
     toolList.forEach((tool) => {
         DQXTools.register(tool.id, {
-            name:       tool.name,
-            icon:       tool.icon,
-            desc:       tool.desc,
-            url:        tool.url,
-            renderFn:   tool.renderFn,
-            hideInMenu: !!tool.hideInMenu
+            name:          tool.name,
+            icon:          tool.icon,
+            desc:          tool.desc,
+            url:           tool.url,
+            renderFn:      tool.renderFn,
+            ver:           tool.ver,
+            hideInMenu:    !!tool.hideInMenu,
+            defaultHidden: !!tool.defaultHidden
         });
     });
 

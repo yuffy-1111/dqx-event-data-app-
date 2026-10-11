@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.0.0s",
-  "updatedAt": "2026-06-29",
+  "launcherVersion": "1.1.8s",
+  "updatedAt": "2026-10-01",
   "tools": [
     {
       "id": "Checker",
@@ -10,6 +10,7 @@
       "desc": "日課・週課・隔週・月課",
       "url": "./tools/checker.js",
       "renderFn": "Checker.render",
+      "ver": "1.2.4s",
       "cache": true
     },
     {
@@ -19,6 +20,7 @@
       "desc": "経験値計算<br>タイマー",
       "url": "./tools/expmercenary.js",
       "renderFn": "Expmercenary.render",
+      "ver": "2.6.0",
       "cache": true
     },
     {
@@ -28,7 +30,19 @@
       "desc": "旧verセレクタ",
       "url": "./tools/version_selector.js",
       "renderFn": "VersionSelector.render",
+      "ver": "1.2.2s",
       "cache": true
+    },
+    {
+      "id": "kaji",
+      "name": "鍛冶職人シミュレーター",
+      "icon": "🔨",
+      "desc": "鍛冶シミュレーター",
+      "url": "./tools/kaji.js",
+      "renderFn": "Kaji.render",
+      "ver": "1.0.5",
+      "cache": true,
+      "defaultHidden": true
     },
     {
       "id": "help",
@@ -37,6 +51,7 @@
       "desc": "使い方<br>Q&A",
       "url": "./tools/help.js",
       "renderFn": "Help.render",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
@@ -46,6 +61,7 @@
       "desc": "キャッシュ<br>フィードバック",
       "url": "./tools/settings.js",
       "renderFn": "Settings.render",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
@@ -55,13 +71,29 @@
       "desc": "ホーム画面に<br>追加する方法",
       "url": "./tools/install.js",
       "renderFn": "Install.render",
+      "ver": "1.1.2s",
       "cache": true,
       "hideInMenu": true
     }
   ],
   "testTools": [
-    { "file": "testtool.js", "globalName": "DQtool", "name": "構成保存", "icon": "📊" },
-    { "file": "testtool2.js", "globalName": "DQtool2", "name": "テスト空枠", "icon": "💿" },
-    { "file": "testtool3.js", "globalName": "DQtool3", "name": "職人ツール", "icon": "🛠️" }
+    {
+      "file": "testtool.js",
+      "globalName": "DQtool",
+      "name": "構成保存",
+      "icon": "📊"
+    },
+    {
+      "file": "testtool2.js",
+      "globalName": "DQtool2",
+      "name": "テスト空枠",
+      "icon": "💿"
+    },
+    {
+      "file": "testtool3.js",
+      "globalName": "DQtool3",
+      "name": "職人ツール",
+      "icon": "🛠️"
+    }
   ]
 }

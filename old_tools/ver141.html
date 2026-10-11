@@ -50,7 +50,6 @@ body.dark-mode #ts{background:#008b8b!important;color:#fff!important;border-colo
 .dark-toggle:active{opacity:0.7}
 .history-time,.history-lap{font-family:'Verdana',system-ui,sans-serif!important;font-variant-numeric:tabular-nums}
 </style>
-<div><button id="darkModeToggle" class="dark-toggle">🌙</button></div>
 <div>
 <div class="c">
 <div style="display:flex;gap:6px;margin-bottom:8px">
@@ -137,29 +136,6 @@ body.dark-mode #ts{background:#008b8b!important;color:#fff!important;border-colo
 </div>
 </div>
 <script>
-const toggleBtn=document.getElementById('darkModeToggle');
-let isDark=false;
-
-// 保存されたダークモード状態を復元
-const savedDarkMode = localStorage.getItem('darkMode');
-if (savedDarkMode === 'dark') {
-  isDark = true;
-  document.body.classList.add('dark-mode');
-  toggleBtn.textContent = '☀️';
-} else {
-  isDark = false;
-  document.body.classList.remove('dark-mode');
-  toggleBtn.textContent = '🌙';
-}
-
-// トグルクリック時に保存
-toggleBtn.onclick = () => {
-  isDark = !isDark;
-  document.body.classList.toggle('dark-mode', isDark);
-  toggleBtn.textContent = isDark ? '☀️' : '🌙';
-  localStorage.setItem('darkMode', isDark ? 'dark' : 'light');
-};
-
 // 履歴コピー機能
 document.getElementById('copyHistoryBtn').onclick = () => {
   let rows = [];

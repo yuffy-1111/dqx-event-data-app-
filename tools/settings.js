@@ -1,5 +1,9 @@
 // ========== 設定ツール ==========
 (function(global) {
+    const STORAGE_KEYS = Object.freeze({
+        MANIFEST_VERSION: 'dqx_manifest_version'
+    });
+
     const Settings = {
         _beforeInstallHandler: null,
         _appInstalledHandler:  null,
@@ -11,6 +15,16 @@
             container.innerHTML = `
                 <div class="settings-container">
                     <h2>⚙️ 設定</h2>
+
+                    <div class="settings-card">
+                        <h3>📘 使い方ガイド</h3>
+                        <div class="button-group">
+                            <button id="showHomeGuideBtn" class="btn-info">ホーム画面のガイドを見る</button>
+                        </div>
+                        <p class="settings-note">
+                            ※ ホーム画面に移動して、各機能の説明を最初から表示します。
+                        </p>
+                    </div>
 
                     <div class="settings-card">
                         <h3>🗑️ データ管理</h3>
@@ -180,8 +194,22 @@
                 `;
             }
 
+            // ----- 使い方ガイドをもう一度見る -----
+            const showHomeGuideBtn = document.getElementById('showHomeGuideBtn');
+            if (showHomeGuideBtn) {
+                showHomeGuideBtn.onclick = () => {
+                    if (window.DQXTools && typeof window.DQXTools.showHomeGuideForced === 'function') {
+                        window.DQXTools.showHomeGuideForced();
+                    }
+                };
+            }
+
             // ----- 最新版を確認して更新 -----
-            // バージョン比較は window.dqxCompareVersions（index.html で定義）を使用
+            // Safari の PWA 等はキャッシュが強く、バージョン比較自体が
+            // 古い情報に基づいている可能性がある（tools-manifest.json の
+            // fetch 結果すら古いキャッシュを参照してしまうケースがある）。
+            // そのため「バージョンが一致しているか」では分岐せず、
+            // このボタンが押されたら常にキャッシュクリア＋再取得＋強制リロードを行う。
             const forceUpdateBtn = document.getElementById('forceUpdateApp');
             if (forceUpdateBtn) {
                 forceUpdateBtn.onclick = async () => {
@@ -189,31 +217,22 @@
                         alert('オフラインのため更新を確認できません。オンライン環境で再度お試しください。');
                         return;
                     }
-                    let didReload = false;
                     forceUpdateBtn.disabled    = true;
-                    forceUpdateBtn.textContent = '確認中…';
+                    forceUpdateBtn.textContent = '更新中…';
                     try {
-                        const manifest  = (typeof window.dqxCheckVersion === 'function')
-                            ? await window.dqxCheckVersion()
-                            : null;
-                        const remoteVer = manifest && manifest.launcherVersion;
-
-                        if (!remoteVer) {
-                            alert('最新情報を取得できませんでした。時間をおいて再度お試しください。');
-                            return;
+                        // 一応バージョン情報を最新化しておく（失敗しても後続処理は続行）
+                        if (typeof window.dqxCheckVersion === 'function') {
+                            await window.dqxCheckVersion().catch(() => null);
                         }
 
-                        const storedVer = localStorage.getItem('dqx_manifest_version');
-                        const compare   = typeof window.dqxCompareVersions === 'function'
-                            ? window.dqxCompareVersions
-                            : (a, b) => (a === b ? 0 : a > b ? 1 : -1);
-                        const cmp       = storedVer ? compare(remoteVer, storedVer) : 1;
-
-                        if (cmp <= 0) {
-                            alert('現在の読み込みキャッシュは最新です。');
-                            return;
+                        if (typeof window.clearDqxCachesAndReload === 'function') {
+                            // Cache Storage 削除 → SW の activate 切り替わりを待つ →
+                            // location.reload() まで一貫して行う（index.html 側で定義）
+                            await window.clearDqxCachesAndReload();
+                            return; // reload されるためここには通常到達しない
                         }
 
+                        // フォールバック（clearDqxCachesAndReload が未定義の場合）
                         if ('caches' in window) {
                             const keys = await caches.keys();
                             await Promise.all(
@@ -224,17 +243,12 @@
                             const reg = await navigator.serviceWorker.getRegistration();
                             if (reg) await reg.update();
                         }
-                        alert('✅ 更新を適用しました。ページを再読み込みします。');
-                        didReload = true;
-                        location.reload(true);
+                        location.reload();
                     } catch (e) {
                         console.error(e);
                         alert('更新中にエラーが発生しました。時間をおいて再度お試しください。');
-                    } finally {
-                        if (!didReload) {
-                            forceUpdateBtn.disabled    = false;
-                            forceUpdateBtn.textContent = '最新版を確認して更新';
-                        }
+                        forceUpdateBtn.disabled    = false;
+                        forceUpdateBtn.textContent = '最新版を確認して更新';
                     }
                 };
             }
@@ -283,7 +297,7 @@
 
                 const launcherVer = window.LAUNCHER_VERSION || '—';
                 const htmlVer     = window.HTML_VERSION     || '—';
-                const manifestVer = localStorage.getItem('dqx_manifest_version') || '—';
+                const manifestVer = localStorage.getItem(STORAGE_KEYS.MANIFEST_VERSION) || '—';
                 const match = (launcherVer !== '—' && htmlVer !== '—')
                     ? (launcherVer === htmlVer)
                     : null;

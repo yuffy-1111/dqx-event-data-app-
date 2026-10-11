@@ -1,8 +1,48 @@
 /* ========== ランチャー共通スタイル ========== */
 html, body {
-    overscroll-behavior-y: contain;
+    /* overscroll-behavior-x（横方向のオーバースクロール）はスタンドアロン
+       アプリでも意図しないスワイプナビゲーションを防ぐため常に無効化する */
     overscroll-behavior-x: none;
     touch-action: manipulation;
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+    background: #f5f7fa;
+    color: #0f172a;
+    transition: color 0.2s ease;
+}
+
+body.dark-mode {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+/*
+ * 縦方向のプルツーリフレッシュ（画面を下に引っ張るとブラウザが自動で
+ * ページを再読み込みする機能）は、そもそも「ブラウザのタブとして開いている
+ * 場合」にのみ発生するブラウザ標準の挙動であり、ホーム画面に追加して
+ * スタンドアロンアプリとして起動した場合はこの挙動自体が存在しない。
+ * そのため、無条件に overscroll-behavior-y: none にする必要はなく、
+ * ブラウザタブ表示時（.dqx-browser-mode、JS側で判定して付与）にのみ
+ * 適用する。スタンドアロン時は元の contain のままにして、
+ * ネイティブのバウンド感を不要に殺さないようにする。
+ */
+html, body {
+    overscroll-behavior-y: contain;
+}
+/*
+ * JSは <html> にしか .dqx-browser-mode を付与できない
+ * （<head> 実行時点では <body> がまだ存在しないため）。
+ * body.dqx-browser-mode という書き方だとbody側には永久にクラスが
+ * 付かず条件が成立しないので、子孫セレクタで html 側のクラスから
+ * body にも波及させる。
+ */
+html.dqx-browser-mode,
+html.dqx-browser-mode body {
+    overscroll-behavior-y: none;
 }
 
 /* ----- ネットワーク状態インジケーター（ヘッダー内常設） ----- */
@@ -97,6 +137,10 @@ body.dark-mode #dqx-net-popover .dqx-net-label { color: #94a3b8; }
     margin-bottom: 30px;
     padding-bottom: 15px;
     border-bottom: 2px solid #ddd;
+    background: transparent;
+    backdrop-filter: none;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .home-title {
@@ -160,12 +204,13 @@ body.dark-mode #dqx-net-popover .dqx-net-label { color: #94a3b8; }
 #manage-modal .manage-dialog {
     background: #fff;
     color: #000;
-    padding: 20px;
-    border-radius: 8px;
+    padding: 22px;
+    border-radius: 16px;
     width: 90%;
     max-width: 720px;
     max-height: 80vh;
     overflow: auto;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
 }
 
 #manage-modal .manage-dialog button {
@@ -227,9 +272,9 @@ body.dark-mode #manage-modal .manage-row {
 .home-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 20px;
+    gap: 16px;
     flex: 1;
-    margin-bottom: 40px;
+    margin-bottom: 32px;
 }
 
 /* ===== カード内部の余白を完全撲滅 ===== */
@@ -306,7 +351,7 @@ body.dark-mode #manage-modal .manage-row {
     text-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 .card-badge-yellow  { color: #f59e0b; }
-.card-badge-orange  { color: #f97316; }
+.card-badge-green   { color: #22c55e; }
 
 .home-footer {
     display: flex;
@@ -317,6 +362,9 @@ body.dark-mode #manage-modal .manage-row {
     font-size: 12px;
     color: #888;
     border-top: 1px solid #ddd;
+    background: transparent;
+    border-radius: 0;
+    backdrop-filter: none;
 }
 
 .footer-row {
@@ -539,9 +587,19 @@ body.dark-mode .footer-install-link:hover {
     align-items: center;
     gap: 4px;
     font-size: 20px;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     min-width: 50px;
     overflow: visible;
+}
+
+.tool-menu-btn:focus-visible,
+.dark-toggle-btn:focus-visible,
+.manage-btn:focus-visible,
+.footer-reload-btn:focus-visible,
+.footer-text-btn:focus-visible,
+.sidebar-float-btn:focus-visible {
+    outline: 2px solid rgba(255,255,255,0.95);
+    outline-offset: 2px;
 }
 
 .tool-menu-sidebar .tool-menu-btn {
@@ -601,19 +659,19 @@ body.dark-mode .footer-install-link:hover {
     top: 50%;
     transform: translateY(-50%);
     z-index: 999;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    background: rgba(30, 30, 50, 0.85);
+    background: rgba(30, 30, 50, 0.9);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.16);
     font-size: 16px;
     cursor: pointer;
     display: none;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    transition: all 0.2s;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+    transition: all 0.2s ease;
     backdrop-filter: blur(5px);
 }
 
@@ -623,7 +681,8 @@ body.dark-mode .footer-install-link:hover {
 }
 
 /* 格納状態を強制的に復元するためのユーティリティクラス */
-body.sidebar-hidden .tool-menu-sidebar {
+body.sidebar-hidden .tool-menu-sidebar,
+body.sidebar-hidden .tool-menu-bottom {
     display: none !important;
 }
 body.sidebar-hidden .sidebar-float-btn {
@@ -730,8 +789,17 @@ body.dark-mode .sidebar-float-btn:hover {
         padding-bottom: 10px;
     }
 
+    /* PC用の右辺中央配置ではなく、下部ツールバー(.tool-menu-bottom)と被らない
+       右下に再配置する。以前はモバイルで強制非表示にしていたが、
+       モバイルにもツールバー格納機能を追加したため復帰ボタンとして使用する。 */
     .sidebar-float-btn {
-        display: none !important;
+        top: auto;
+        bottom: 90px;
+        right: 12px;
+        transform: none;
+    }
+    .sidebar-float-btn:hover {
+        transform: scale(1.05);
     }
 }
 
@@ -964,4 +1032,136 @@ body.dark-mode .rn-version {
 
 body.dark-mode .rn-list li {
     color: #cbd5e1;
+}
+
+/* ========== 機能ガイド（スポットライト式ツアー） ========== */
+#dqx-guide-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40000;
+    background: transparent;
+}
+
+#dqx-guide-highlight {
+    position: fixed;
+    z-index: 40001;
+    border-radius: 14px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+#dqx-guide-balloon {
+    position: fixed;
+    z-index: 40002;
+    width: 300px;
+    max-width: 88vw;
+    background: #fff;
+    color: #1e293b;
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    transition: top 0.25s ease, left 0.25s ease;
+}
+
+.dqx-guide-step-count {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.dqx-guide-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: #0066cc;
+    margin: 0 0 8px;
+}
+
+.dqx-guide-text {
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0 0 16px;
+    color: #333;
+}
+
+.dqx-guide-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.dqx-guide-actions-right {
+    display: flex;
+    gap: 8px;
+}
+
+.dqx-guide-skip-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 6px 4px;
+    text-decoration: underline;
+}
+
+.dqx-guide-nav-btn {
+    background: #f0f0f0;
+    border: none;
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #555;
+}
+
+.dqx-guide-nav-btn.dqx-guide-primary {
+    background: #0066cc;
+    color: #fff;
+    font-weight: bold;
+}
+
+.dqx-guide-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.06);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    color: #888;
+    font-size: 13px;
+    line-height: 1;
+}
+
+/* ダークモード */
+body.dark-mode #dqx-guide-balloon {
+    background: #1e293b;
+    color: #e2e8f0;
+}
+body.dark-mode .dqx-guide-title { color: #60a5fa; }
+body.dark-mode .dqx-guide-text  { color: #cbd5e1; }
+body.dark-mode .dqx-guide-step-count { color: #94a3b8; }
+body.dark-mode .dqx-guide-nav-btn {
+    background: #334155;
+    color: #e2e8f0;
+}
+body.dark-mode .dqx-guide-nav-btn.dqx-guide-primary {
+    background: #3399ff;
+    color: #0f172a;
+}
+body.dark-mode .dqx-guide-skip-btn { color: #94a3b8; }
+body.dark-mode .dqx-guide-close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+}
+
+@media (max-width: 768px) {
+    #dqx-guide-balloon {
+        width: 88vw;
+        padding: 14px;
+    }
 }

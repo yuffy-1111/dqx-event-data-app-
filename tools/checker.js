@@ -1,61 +1,93 @@
-// ==========コンテンツチェッカー==========
+// ========== 進捗チェッカー ==========
 
 (function (global) {
 
   // ===== ストレージキー =====
-  const STORAGE_KEY_CHARS         = 'dqx_chars_final10';
-  const STORAGE_KEY_CHECK_PREFIX  = 'dqx_check_final10_';
-  const STORAGE_KEY_DISABLED      = 'dqx_disabled_final10';
-  const STORAGE_KEY_HIDDEN        = 'dqx_hidden_tasks_v1';
-  const STORAGE_KEY_LIM_CHECKS    = 'dqx_limited_checks_v3';
+  const STORAGE_KEYS = Object.freeze({
+    CHARS: 'dqx_chars_final10',
+    CHECK_PREFIX: 'dqx_check_final10_',
+    DISABLED: 'dqx_disabled_final10',
+    HIDDEN: 'dqx_hidden_tasks_v1',
+    LIM_CHECKS: 'dqx_limited_checks_v3',
+    CUSTOM_EVENTS: 'dqx_custom_events_v1'
+  });
+  const STORAGE_KEY_CHARS        = STORAGE_KEYS.CHARS;
+  const STORAGE_KEY_CHECK_PREFIX = STORAGE_KEYS.CHECK_PREFIX;
+  const STORAGE_KEY_DISABLED     = STORAGE_KEYS.DISABLED;
+  const STORAGE_KEY_HIDDEN       = STORAGE_KEYS.HIDDEN;
+  const STORAGE_KEY_LIM_CHECKS   = STORAGE_KEYS.LIM_CHECKS;
 
   const EVENTS_URL  = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
   const RESET_HOUR  = 6; // JST 毎日6時リセット
 
-  // ===== 呪文フォーマット定数 =====
-  // Y = 現行形式（名前全文字 + カラー + チェックBase64 + ロックBase64）
-  // X = 旧ブログ版（フィールド構成は同じ、23項目として読み込む）
-  const SPELL_MARKER_CURRENT = 'Y';
-  const SPELL_MARKER_LEGACY  = 'X';
-  const SPELL_FIELD_SEP      = '|';
-  const SPELL_RECORD_SEP     = ';';
+  let cachedCheckerEvents = {
+    key: null,
+    events: [],
+  };
 
-  // タスクキーの順序（ビット列のインデックス順、23項目）
+  async function loadCheckerEvents(targetDate) {
+    const key = targetDate.getTime();
+    if (cachedCheckerEvents.key === key) {
+      return cachedCheckerEvents.events;
+    }
+
+    let events = [];
+    try {
+      const res = await fetch(EVENTS_URL, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (validateEventData(data)) events = data.events;
+      }
+    } catch (e) {
+      console.error('イベント取得失敗:', e);
+    }
+
+    cachedCheckerEvents.key = key;
+    cachedCheckerEvents.events = events;
+    return events;
+  }
+
+  // タスクキーの順序（表示順と一致させている。リリース前のため自由に並び替え可）
   const TASK_KEY_ORDER = [
-    'daily1', 'daily2', 'daily3', 'daily4',
+    'daily1', 'daily2', 'daily3', 'daily4', 'daily5',
     'weekly1', 'weekly2', 'weekly3', 'weekly4', 'weekly5',
-    'weekly6', 'weekly7', 'weekly8', 'weekly9', 'weekly10',
-    'roster', 'tasogare', 'lemon',
+    'weekly6', 'weekly7', 'weekly8', 'weekly9', 'weekly10', 'weekly11', 'weekly12',
+    'roster', 'lemon', 'tasogare',
     'jashin',
     'monthly1',
     'pani',
     'konmeiku',
-    'sekkai',
+    'mamono_alliance',
     'monthly2',
+    'sekkai',
+    'hanabira',
   ];
 
   // ===== タスク定義 =====
   const SECTIONS_TEMPLATE = [
     { type: 'section', label: '▼ 日課',     sectionId: 'daily-section',        taskKey: 'section_daily',      cycleTaskId: null },
     { name: '日替わり討伐',          taskId: 'daily',    key: 'daily1' },
-    { name: '深淵の咎人(ﾗｸﾘﾏ)',     taskId: 'daily',    key: 'daily2' },
-    { name: '深淵の咎人(果実)',       taskId: 'daily',    key: 'daily3' },
-    { name: '聖守護者の闘戦記',       taskId: 'daily',    key: 'daily4' },
+    { name: '常闇の聖戦',             taskId: 'daily',    key: 'daily2' },
+    { name: '聖守護者の闘戦記',       taskId: 'daily',    key: 'daily3' },
+    { name: '深淵の咎人(ﾗｸﾘﾏ)',     taskId: 'daily',    key: 'daily4' },
+    { name: '深淵の咎人(果実)',       taskId: 'daily',    key: 'daily5' },
     { type: 'section', label: '▼ 週課',     sectionId: 'weekly-section',        taskKey: 'section_weekly',     cycleTaskId: 'weekly' },
-    { name: '週替わり討伐',           taskId: 'weekly',   key: 'weekly1' },
-    { name: 'エピソード依頼帳',       taskId: 'weekly',   key: 'weekly2' },
-    { name: 'トレーニー育成帳',       taskId: 'weekly',   key: 'weekly3' },
-    { name: '達人クエスト',           taskId: 'weekly',   key: 'weekly4' },
-    { name: '王家の迷宮',             taskId: 'weekly',   key: 'weekly5' },
-    { name: 'ピラミッド',             taskId: 'weekly',   key: 'weekly6' },
-    { name: '万魔の塔',               taskId: 'weekly',   key: 'weekly7' },
-    { name: 'アスタルジア探索',       taskId: 'weekly',   key: 'weekly8' },
-    { name: '皇帝の創りしもの',       taskId: 'weekly',   key: 'weekly9' },
-    { name: 'ヴァリーブートキャンプ', taskId: 'weekly',   key: 'weekly10' },
+    { name: '試練の門',               taskId: 'weekly',   key: 'weekly1' },
+    { name: '週替わり討伐',           taskId: 'weekly',   key: 'weekly2' },
+    { name: '王家の迷宮',             taskId: 'weekly',   key: 'weekly3' },
+    { name: 'ピラミッド',             taskId: 'weekly',   key: 'weekly4' },
+    { name: '達人クエスト',           taskId: 'weekly',   key: 'weekly5' },
+    { name: '万魔の塔',               taskId: 'weekly',   key: 'weekly6' },
+    { name: 'ヴァリーブートキャンプ', taskId: 'weekly',   key: 'weekly7' },
+    { name: 'エピソード依頼帳',       taskId: 'weekly',   key: 'weekly8' },
+    { name: 'トレーニー育成帳',       taskId: 'weekly',   key: 'weekly9' },
+    { name: 'アスタルジア探索',       taskId: 'weekly',   key: 'weekly10' },
+    { name: '皇帝の創りしもの',       taskId: 'weekly',   key: 'weekly11' },
+    { name: 'まもの博士(ソロ)',       taskId: 'weekly',   key: 'weekly12' },
     { type: 'section', label: '▼ 隔週',     sectionId: 'biweekly-section',      taskKey: 'section_biweekly',   cycleTaskId: 'roster' },
     { name: 'ロスターのお題',         taskId: 'roster',   key: 'roster' },
-    { name: '黄昏の奏戦記',           taskId: 'tasogare', key: 'tasogare' },
     { name: 'レモンスライムクイズ',   taskId: 'lemon',    key: 'lemon' },
+    { name: '黄昏の奏戦記',           taskId: 'tasogare', key: 'tasogare' },
     { type: 'section', label: '▼ 隔週2',    sectionId: 'jashin-section',        taskKey: 'section_jashin',     cycleTaskId: 'jashin' },
     { name: '邪神の宮殿',             taskId: 'jashin',   key: 'jashin' },
     { type: 'section', label: '▼ 月1回',    sectionId: 'monthly-section',       taskKey: 'section_monthly',    cycleTaskId: 'monthly' },
@@ -64,10 +96,14 @@
     { name: '現世庫パニガルム',       taskId: 'pani',     key: 'pani' },
     { type: 'section', label: '▼ 期間限定', sectionId: 'limited-section',       taskKey: 'section_limited',    cycleTaskId: 'konmeiku' },
     { name: '昏冥庫パニガルム',       taskId: 'konmeiku', key: 'konmeiku' },
-    { type: 'section', label: '▼ 受け取り', sectionId: 'receive-10-section',    taskKey: 'section_receive_10', cycleTaskId: 'sekkai' },
-    { name: '覚醒の秘石',             taskId: 'sekkai',   key: 'sekkai' },
+    { type: 'section', label: '▼ 期間限定2', sectionId: 'limited2-section',     taskKey: 'section_limited2',   cycleTaskId: 'mamono_alliance' },
+    { name: 'まもの博士(同盟)',       taskId: 'mamono_alliance', key: 'mamono_alliance' },
     { type: 'section', label: '▼ 受け取り', sectionId: 'receive-1-section',     taskKey: 'section_receive_1',  cycleTaskId: 'monthly' },
     { name: '宝珠ポイント(福引券)',   taskId: 'monthly',  key: 'monthly2' },
+    { type: 'section', label: '▼ 受け取り', sectionId: 'receive-10-section',    taskKey: 'section_receive_10', cycleTaskId: 'sekkai' },
+    { name: '覚醒の秘石',             taskId: 'sekkai',   key: 'sekkai' },
+    { type: 'section', label: '▼ 受け取り', sectionId: 'receive-15-section',    taskKey: 'section_receive_15', cycleTaskId: 'hanabira' },
+    { name: '黄金の花びら',           taskId: 'hanabira', key: 'hanabira' },
   ];
 
   // ===== 共通ユーティリティ =====
@@ -228,11 +264,11 @@
     ].join('');
 
     const title = document.createElement('p');
-    title.textContent = '呪文を貼り付けてください（X または Y で始まる文字列）';
+    title.textContent = 'コードを貼り付けてください（W2|で始まる文字列）※既存の全データが上書きされます';
     title.style.cssText = 'margin:0 0 12px;font-weight:bold;line-height:1.5;';
 
     const ta = document.createElement('textarea');
-    ta.placeholder = 'Y|キャラ名|...';
+    ta.placeholder = 'W2|...';
     ta.style.cssText = [
       'width:100%;height:100px;font-size:12px;',
       'background:#0f172a;color:#e5e7eb;border:1px solid #475569;',
@@ -345,12 +381,15 @@
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   }
 
-  /** 実効日から "YYYY_週番号" 形式のキーを返す */
+  /**
+   * "週" のキーを返す。
+   * 固定タスクの週課リセット（getLastResetDate('weekly', ...) の 2026/4/12 6:00 起点・
+   * 168時間周期）と同じ基準を使うことで、期間限定イベント側の週次判定とズレないようにする。
+   * 暦週（1/1起点）ではなく、実際のゲーム内週次リセット時刻そのものをキーにする。
+   */
   function getWeekKey(date) {
-    const d = getEffectiveDate(date);
-    const jan1 = new Date(d.getFullYear(), 0, 1);
-    const weekNum = Math.floor((d - jan1) / (7 * 86400000));
-    return `${d.getFullYear()}_${weekNum}`;
+    const lastReset = getLastResetDate('weekly', date);
+    return `w_${lastReset.getTime()}`;
   }
 
   /** "YYYY-M-D" 形式のキーを Date に戻す */
@@ -399,6 +438,17 @@
    * @returns {Date}
    */
   function getLastResetDate(taskId, targetDate) {
+    // 黄金の花びらのみ「毎月15日 18:00更新」という特殊時刻のため、
+    // 他タスク共通の6:00基準の実効日(getEffectiveDate)を経由せず、実時刻でそのまま判定する。
+    if (taskId === 'hanabira') {
+      const now = getJSTNow();
+      const y2 = now.getFullYear();
+      const mo2 = now.getMonth();
+      let boundary = new Date(y2, mo2, 15, 18, 0, 0);
+      if (now < boundary) boundary = new Date(y2, mo2 - 1, 15, 18, 0, 0);
+      return boundary;
+    }
+
     const target = getEffectiveDate(targetDate);
     const year   = target.getFullYear();
     const month  = target.getMonth();
@@ -424,6 +474,11 @@
         return day >= 15
           ? new Date(year, month, 15, 6, 0, 0)
           : new Date(year, month, 1, 6, 0, 0);
+      case 'mamono_alliance':
+        // 毎月20日6:00〜26日5:59開催。更新日=20日固定
+        return day >= 20
+          ? new Date(year, month, 20, 6, 0, 0)
+          : new Date(year, month - 1, 20, 6, 0, 0);
       case 'jashin': {
         // 毎月10日・25日リセット
         if (day >= 25) return new Date(year, month, 25, 6, 0, 0);
@@ -455,6 +510,9 @@
     const last = getLastResetDate(taskId, targetDate);
     const next = new Date(last);
     switch (taskId) {
+      case 'hanabira':
+        next.setMonth(next.getMonth() + 1);
+        break;
       case 'weekly':
         next.setTime(last.getTime() + 168 * 60 * 60 * 1000);
         break;
@@ -485,6 +543,36 @@
    * @param {Date}        targetDate
    * @returns {string}
    */
+  /**
+   * 対象日が各セクションの更新日（リセット当日）かどうかを判定し、
+   * 該当するセクションのラベル一覧を返す（todayInfo カードでの案内表示用）
+   * @param {Date} targetDate
+   * @returns {string[]} 更新日に該当するセクションラベル（"▼ " は除去済み）
+   */
+  function getTodayUpdateLabels(targetDate) {
+    const effective = getEffectiveDate(targetDate);
+    const seenTaskIds = new Set();
+    const labels = [];
+
+    for (const item of SECTIONS_TEMPLATE) {
+      if (item.type !== 'section' || !item.cycleTaskId) continue;
+      if (seenTaskIds.has(item.cycleTaskId)) continue;
+      seenTaskIds.add(item.cycleTaskId);
+
+      let isResetDay;
+      if (item.cycleTaskId === 'konmeiku') {
+        // 昏冥庫は1日・15日の開催開始日のみを更新日とする
+        const day = effective.getDate();
+        isResetDay = (day === 1 || day === 15);
+      } else {
+        const last = getLastResetDate(item.cycleTaskId, effective);
+        isResetDay = isSameEffectiveDay(last, effective);
+      }
+      if (isResetDay) labels.push(item.label.replace(/^▼\s*/, ''));
+    }
+    return labels;
+  }
+
   function getSectionNextText(taskId, targetDate) {
     if (!taskId) return '';
 
@@ -511,6 +599,16 @@
       const nextStart = day < 15
         ? new Date(effectiveNow.getFullYear(), effectiveNow.getMonth(), 15, 6, 0, 0)
         : new Date(effectiveNow.getFullYear(), effectiveNow.getMonth() + 1, 1, 6, 0, 0);
+      return buildText(nextStart);
+    }
+
+    if (taskId === 'mamono_alliance') {
+      const day = effectiveNow.getDate();
+      // 20〜25日（開催中）を含め、次に20日を迎えるのは
+      // 「20日より前」なら今月20日、それ以外（開催中含む）は来月20日
+      const nextStart = day < 20
+        ? new Date(effectiveNow.getFullYear(), effectiveNow.getMonth(), 20, 6, 0, 0)
+        : new Date(effectiveNow.getFullYear(), effectiveNow.getMonth() + 1, 20, 6, 0, 0);
       return buildText(nextStart);
     }
 
@@ -549,19 +647,25 @@
 
   /**
    * 昏冥庫パニガルムの現在のサイクルインデックスを返す
-   * 1日と15日を交互にカウントして4周期を算出
+   * 1日と15日を交互にカウントして4周期を算出する。
+   *
+   * [リファクタリング注記]
+   * 旧実装は KONMEIKU_BASE_DATE から対象日まで1日/15日を1件ずつ数え上げる
+   * ループ処理だったため、基準日から離れるほど反復回数が増え続ける上、
+   * 他の周期計算（週課・パニガルム等）が採用している「経過時間からの閉形式計算」
+   * と方式が異なっていた。年をまたぐケース自体で値がズレることはなかったが、
+   * 実装方式の不統一はレビュー・保守コストの温床になるため、他と同じ閉形式の
+   * 計算式に統一する。
    */
   function getKonmeikuCycleIndex(targetDate) {
-    const target  = getEffectiveDate(targetDate);
-    let count     = 0;
-    let current   = new Date(KONMEIKU_BASE_DATE);
-    while (current <= target) {
-      const day = current.getDate();
-      if (day === 1 || day === 15) count++;
-      current = day === 1
-        ? new Date(current.getFullYear(), current.getMonth(), 15, 6, 0, 0)
-        : new Date(current.getFullYear(), current.getMonth() + 1, 1, 6, 0, 0);
-    }
+    const target = getEffectiveDate(targetDate);
+    // 基準日(KONMEIKU_BASE_DATE = 2026/4/1)からの経過月数（年またぎも正しく計算される）
+    const monthsDiff = (target.getFullYear() - KONMEIKU_BASE_DATE.getFullYear()) * 12
+      + (target.getMonth() - KONMEIKU_BASE_DATE.getMonth());
+    // 対象月内で1日枠(0)か15日枠(1)か
+    const occurrenceInMonth = target.getDate() >= 15 ? 1 : 0;
+    // 基準日(2026/4/1)自体を1件目として数えた開催回数
+    const count = monthsDiff * 2 + occurrenceInMonth + 1;
     return ((count - 1) % 4 + 4) % 4;
   }
 
@@ -755,132 +859,256 @@
     }
   }
 
-  // ===== ビット列 ↔ Base64 =====
+  // ===== ハイブリッド方式のエクスポート/インポート =====
+  // 完全なlocalStorageダンプ(JSON)は文字数が肥大化しやすいため、
+  //   ・件数が多く固定順序を持つ「タスクのチェック/ロック」「タスク/セクションの非表示」→ ビット圧縮
+  //   ・件数が少なく可変（イベントID・カスタムイベント本体）→ 小さいJSONのまま
+  // のハイブリッドにする。書き出し日時(exportedAt)を1つだけ保持し、
+  // インポート時はその日時を「チェックした時点」として書き戻すことで、
+  // 個別に日時を持たせなくても既存のリセット判定ロジック（needsReset等）が
+  // 正しく機能する（インポート後、現在時刻との差でリセット済みかどうかは自動判定される）。
+  // ※ リリース前のため後方互換は考慮せず、既存コードは完全上書きする。
 
-  /** ビット文字列（"0"/"1" の羅列）を URL-safe Base64 に変換 */
+  const EXPORT_MARKER = 'W2';
+
+  // タスク＋セクションの非表示フラグをビット圧縮する際の固定順序
+  const HIDDEN_KEY_ORDER = TASK_KEY_ORDER.concat(
+    SECTIONS_TEMPLATE.filter(item => item.type === 'section' && item.taskKey).map(item => item.taskKey)
+  );
+
+  /** UTF-8文字列をURL-safeなBase64に変換（絵文字・日本語対応、チャンク分割でスタック溢れを回避） */
+  function utf8ToBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary).replace(/\//g, '-').replace(/\+/g, '_').replace(/=/g, '');
+  }
+
+  /** URL-safeなBase64をUTF-8文字列に変換 */
+  function base64ToUtf8(b64) {
+    let padded = b64.replace(/-/g, '/').replace(/_/g, '+');
+    while (padded.length % 4 !== 0) padded += '=';
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  /** ビット文字列（"0"/"1"の羅列）をURL-safe Base64に変換 */
   function bitsToBase64(bits) {
     const bytes = [];
     for (let i = 0; i < bits.length; i += 8) {
       bytes.push(parseInt(bits.slice(i, i + 8).padEnd(8, '0'), 2));
     }
-    return btoa(String.fromCharCode(...bytes))
-      .replace(/\//g, '-').replace(/\+/g, '_').replace(/=/g, '');
+    return btoa(String.fromCharCode(...bytes)).replace(/\//g, '-').replace(/\+/g, '_').replace(/=/g, '');
   }
 
-  /**
-   * URL-safe Base64 をビット文字列に変換する
-   * @param {string} b64           - URL-safe Base64 文字列
-   * @param {number} expectedBits  - 取り出すビット数
-   * @returns {string|null} ビット文字列、失敗時は null
-   */
+  /** URL-safe Base64をビット文字列に変換する。失敗時はnull */
   function base64ToBits(b64, expectedBits) {
     let padded = b64.replace(/-/g, '/').replace(/_/g, '+');
     while (padded.length % 4 !== 0) padded += '=';
     try {
       const decoded = atob(padded);
       let bits = '';
-      for (let i = 0; i < decoded.length; i++) {
-        bits += decoded.charCodeAt(i).toString(2).padStart(8, '0');
-      }
+      for (let i = 0; i < decoded.length; i++) bits += decoded.charCodeAt(i).toString(2).padStart(8, '0');
       return bits.slice(0, expectedBits);
     } catch (e) {
       return null;
     }
   }
 
-  // ===== 呪文の書き出し（現行形式 Y）=====
+  /**
+   * 現在アクティブな全イベント（JSON配信＋カスタム＋Xの日自動生成）を1回のfetchで集めて返す。
+   * @param {Date} targetDate
+   * @returns {Promise<object[]>}
+   */
+  async function collectActiveEvents(targetDate) {
+    let jsonEvents = [];
+    try {
+      const res = await fetch(EVENTS_URL, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (validateEventData(data)) jsonEvents = data.events;
+      }
+    } catch (e) { /* ネットワークエラーは無視 */ }
 
-  function exportSpell() {
+    return jsonEvents
+      .concat(loadCustomEvents())
+      .concat(getRecurringEvents(targetDate))
+      .filter(e => isEventActive(e, targetDate));
+  }
+
+  // ===== 書き出し =====
+
+  async function exportSpell() {
     if (characters.length === 0) {
       showToast('キャラクターが登録されていません', 'error');
       return;
     }
 
-    const effectiveDate = getEffectiveDate(getJSTNow());
+    const now           = getJSTNow();
+    const effectiveDate = getEffectiveDate(now);
     const taskItems     = SECTIONS_TEMPLATE.filter(item => !item.type);
 
-    const records = characters.map(char => {
-      // チェックビット列（TASK_KEY_ORDER 順）
+    // --- タスクのチェック/ロック（キャラごとにビット圧縮） ---
+    const charRecords = characters.map(char => {
       const checkBits = TASK_KEY_ORDER.map(tKey => {
         const item = taskItems.find(t => t.key === tKey);
         return item && loadCheck(tKey, char.id, effectiveDate, item.taskId) ? '1' : '0';
       }).join('');
-
-      // ロック（無効化）ビット列
-      const lockBits = TASK_KEY_ORDER.map(tKey =>
-        isDisabled(tKey, char.id) ? '1' : '0'
-      ).join('');
-
-      return [
-        SPELL_MARKER_CURRENT,
-        char.name,
-        char.color.replace('#', ''),
-        bitsToBase64(checkBits),
-        bitsToBase64(lockBits),
-      ].join(SPELL_FIELD_SEP);
+      const lockBits = TASK_KEY_ORDER.map(tKey => isDisabled(tKey, char.id) ? '1' : '0').join('');
+      return [char.name, char.color.replace('#', ''), bitsToBase64(checkBits), bitsToBase64(lockBits)].join('~');
     });
 
-    const spell = records.join(SPELL_RECORD_SEP);
+    // --- タスク/セクションの非表示（全体で1本、ビット圧縮） ---
+    const hiddenBits = HIDDEN_KEY_ORDER.map(k => isHidden(k) ? '1' : '0').join('');
+    const hiddenB64  = bitsToBase64(hiddenBits);
+
+    // --- イベント関連（件数が少ないので小さいJSONのまま） ---
+    const activeEvents = await collectActiveEvents(now);
+    const customEvents = loadCustomEvents();
+
+    const eventChecks = {};
+    for (const ev of activeEvents) {
+      const checkedIdx = characters
+        .map((char, idx) => (isLimChecked(ev, char.id, now) ? idx : -1))
+        .filter(idx => idx >= 0);
+      if (checkedIdx.length) eventChecks[ev.id] = checkedIdx;
+    }
+    const eventHidden = activeEvents.map(ev => `event_${ev.id}`).filter(k => isHidden(k));
+
+    const variablePart = { customEvents, eventChecks, eventHidden };
+    const variableB64  = utf8ToBase64(JSON.stringify(variablePart));
+
+    const spell = [
+      EXPORT_MARKER,
+      now.toISOString(),
+      hiddenB64,
+      charRecords.join(';'),
+      variableB64,
+    ].join('|');
+
     navigator.clipboard.writeText(spell)
-      .then(() => showToast(`✓ 呪文をコピーしました！（${spell.length}文字）`, 'success'))
+      .then(() => showToast(`✓ 全データを書き出しました！（キャラ${characters.length}人・${spell.length}文字／読込側は完全上書きされます）`, 'success'))
       .catch(() => showCopyFallback(spell));
   }
 
-  // ===== 呪文の読み込み（Y/X 両対応）=====
+  // ===== 読み込み（既存データを完全上書き） =====
 
-  function importSpell(spell) {
+  async function importSpell(spell) {
     spell = (spell || '').trim();
-    if (!spell) { showToast('呪文を入力してください', 'error'); return; }
+    if (!spell) { showToast('コードを入力してください', 'error'); return; }
 
-    const marker = spell.charAt(0);
-    if (marker !== SPELL_MARKER_CURRENT && marker !== SPELL_MARKER_LEGACY) {
-      showToast('不明な形式の呪文です（Y または X で始まる必要があります）', 'error');
+    const parts = spell.split('|');
+    if (parts.length !== 5 || parts[0] !== EXPORT_MARKER) {
+      showToast(`不明な形式のコードです（${EXPORT_MARKER}| で始まる5つのフィールドが必要です）`, 'error');
+      return;
+    }
+    const [, exportedAtStr, hiddenB64, charsBlock, variableB64] = parts;
+
+    const exportedAt = new Date(exportedAtStr);
+    if (isNaN(exportedAt.getTime())) { showToast('書き出し日時の解析に失敗しました', 'error'); return; }
+    const exportedEffective = getEffectiveDate(exportedAt);
+
+    const hiddenBits = base64ToBits(hiddenB64, HIDDEN_KEY_ORDER.length);
+    if (!hiddenBits) { showToast('非表示設定データの解析に失敗しました', 'error'); return; }
+
+    let variablePart;
+    try {
+      variablePart = JSON.parse(base64ToUtf8(variableB64));
+    } catch (e) {
+      showToast('イベントデータの解析に失敗しました', 'error');
       return;
     }
 
-    const effectiveDate   = getEffectiveDate(getJSTNow());
-    const taskItems       = SECTIONS_TEMPLATE.filter(item => !item.type);
-    const records         = spell.split(SPELL_RECORD_SEP);
-    const expectedPrefix  = marker + SPELL_FIELD_SEP;
-    let addedCount        = 0;
-
-    for (let recIdx = 0; recIdx < records.length; recIdx++) {
-      const rec = records[recIdx].trim();
-      if (!rec) continue;
-
-      if (!rec.startsWith(expectedPrefix)) {
-        console.warn(`レコード ${recIdx + 1} をスキップ（${expectedPrefix} で始まらない）`);
-        continue;
-      }
-
-      // マーカーと区切りを除去して各フィールドに分割
-      const parts = rec.slice(2).split(SPELL_FIELD_SEP);
-      if (parts.length < 4) {
-        showToast(`レコード ${recIdx + 1} のフィールド数が不足しています`, 'error');
-        continue;
-      }
-
-      const [charName, colorHex, checkB64, lockB64] = parts;
+    const taskItems = SECTIONS_TEMPLATE.filter(item => !item.type);
+    const newChars  = [];
+    const records   = charsBlock ? charsBlock.split(';') : [];
+    for (const rec of records) {
+      const fields = rec.split('~');
+      if (fields.length < 4) continue;
+      const [name, colorHex, checkB64, lockB64] = fields;
       const checkBits = base64ToBits(checkB64, TASK_KEY_ORDER.length);
-      if (!checkBits) { showToast(`レコード ${recIdx + 1} のチェックデータ解析に失敗`, 'error'); continue; }
+      const lockBits  = base64ToBits(lockB64, TASK_KEY_ORDER.length);
+      if (!checkBits || !lockBits) continue;
+      newChars.push({ name, colorHex, checkBits, lockBits });
+    }
+    if (newChars.length === 0) { showToast('有効なキャラクターデータがありませんでした', 'error'); return; }
 
-      const lockBits = base64ToBits(lockB64, TASK_KEY_ORDER.length);
-      if (!lockBits)  { showToast(`レコード ${recIdx + 1} のロックデータ解析に失敗`, 'error');  continue; }
+    // 対象イベント（JSON配信＋カスタム＋Xの日）を書き出し時点の日付基準で再取得
+    const activeEvents = await collectActiveEvents(exportedAt);
+    const eventById = new Map(activeEvents.map(ev => [ev.id, ev]));
 
+    // ---- ここから完全上書き：進捗チェッカーが管理するキーのみを対象に消去 ----
+    // 以前は 'dqx_' 接頭辞の全キーを一括消去しており、ランチャー側の
+    // ダークモード・カード並び順・表示ツール設定等まで意図せず巻き込んでいた。
+    // ここではチェッカー自身が STORAGE_KEYS で管理しているキー（完全一致／接頭辞）
+    // のみを対象にする。
+    const CHECKER_KEY_PREFIXES = [
+      STORAGE_KEYS.CHECK_PREFIX,  // 'dqx_check_final10_' + taskKey + '_' + charId
+      STORAGE_KEYS.LIM_CHECKS,    // 'dqx_limited_checks_v3' + '_' + eventId + '_' + charId + '_' + periodKey
+    ];
+    const CHECKER_EXACT_KEYS = [
+      STORAGE_KEYS.CHARS,
+      STORAGE_KEYS.DISABLED,
+      STORAGE_KEYS.HIDDEN,
+      STORAGE_KEYS.CUSTOM_EVENTS,
+    ];
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      const matchPrefix = CHECKER_KEY_PREFIXES.some(p => k.startsWith(p));
+      const matchExact  = CHECKER_EXACT_KEYS.includes(k);
+      if (matchPrefix || matchExact) localStorage.removeItem(k);
+    }
+    characters  = [];
+    nextCharId  = 1;
+    disabledMap = new Map();
+    hiddenMap   = new Map();
+
+    // 非表示設定を復元
+    HIDDEN_KEY_ORDER.forEach((key, idx) => {
+      if (hiddenBits[idx] === '1') hiddenMap.set(key, true);
+    });
+    saveHidden();
+
+    // キャラクター・チェック・ロックを復元
+    for (const nc of newChars) {
       const newId = nextCharId++;
-      characters.push({ id: newId, name: charName, color: '#' + colorHex });
-
+      characters.push({ id: newId, name: nc.name, color: '#' + nc.colorHex });
       TASK_KEY_ORDER.forEach((tKey, idx) => {
         const item = taskItems.find(t => t.key === tKey);
-        if (item && checkBits[idx] === '1') saveCheck(tKey, newId, true, effectiveDate);
-        if (lockBits[idx] === '1')          setDisabled(tKey, newId, true);
+        if (item && nc.checkBits[idx] === '1') saveCheck(tKey, newId, true, exportedEffective);
+        if (nc.lockBits[idx] === '1') setDisabled(tKey, newId, true);
       });
-      addedCount++;
+    }
+    saveCharacters();
+
+    // カスタムイベントを復元
+    if (Array.isArray(variablePart.customEvents)) saveCustomEvents(variablePart.customEvents);
+
+    // イベントのチェック状態を復元（書き出し時点の日付を基準にperiodKeyを計算）
+    if (variablePart.eventChecks && typeof variablePart.eventChecks === 'object') {
+      for (const [eventId, charIdxArr] of Object.entries(variablePart.eventChecks)) {
+        const ev = eventById.get(eventId);
+        if (!ev || !Array.isArray(charIdxArr)) continue;
+        for (const idx of charIdxArr) {
+          const ch = characters[idx];
+          if (ch) setLimChecked(ev, ch.id, true, exportedAt);
+        }
+      }
     }
 
-    if (addedCount === 0) { showToast('有効なデータがありませんでした', 'error'); return; }
-    saveCharacters();
-    showToast(`✓ ${addedCount}人分のデータを読み込みました！`, 'success');
+    // イベント行の非表示設定を復元
+    if (Array.isArray(variablePart.eventHidden)) {
+      for (const key of variablePart.eventHidden) hiddenMap.set(key, true);
+      saveHidden();
+    }
+
+    showToast(`✓ 全データを上書き読み込みしました！（キャラ${characters.length}人）`, 'success');
     renderAll();
   }
 
@@ -913,7 +1141,7 @@
 
   /** 期間限定イベントのチェック保存キーを生成 */
   function getLimCheckKey(eventId, charId, periodKey) {
-    return `${STORAGE_KEY_LIM_CHECKS}_${eventId}_${charId}_${periodKey}`;
+    return `${STORAGE_KEYS.LIM_CHECKS}_${eventId}_${charId}_${periodKey}`;
   }
 
   /** 期間限定イベントのチェック状態を返す */
@@ -964,13 +1192,294 @@
     );
   }
 
-  // ===== 詳細テーブル（パニガルム・イベント一覧） =====
+  // ===== 固定周期の自動生成イベント（Xの日）=====
+  // 毎月10日は「当日限定」の受け取り行動が複数あるが、常設のSECTIONS_TEMPLATEに
+  // 入れると常時チェックが表示されてしまう。JSON配信イベント・手入力イベントと同じ
+  // 「▼ イベント」枠に、対象日のみ自動でマージ表示することで解決する。
+  // idに年月を含めることで、月をまたぐと自動的に新しいチェック状態（未チェック）になる。
 
-  async function renderDetailTable() {
+  /** "YYYY-MM-DDTHH:mm:ss" 形式（オフセットなし）に変換。parseToJSTでJSTとして解釈される */
+  function fmtLocalISO(d) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  /**
+   * 対象日が10日の場合のみ、Xの日の当日限定受け取りイベント3件を生成して返す。
+   * 期間は例外なく当日6:00〜翌5:59（RESET_HOURと同一基準）。
+   * @param {Date} targetDate
+   * @returns {object[]}
+   */
+  function getRecurringEvents(targetDate) {
+    const effective = getEffectiveDate(targetDate);
+    if (effective.getDate() !== 10) return [];
+
+    const y = effective.getFullYear();
+    const m = effective.getMonth();
+    const start = new Date(y, m, 10, RESET_HOUR, 0, 0);
+    const end   = new Date(y, m, 11, RESET_HOUR - 1, 59, 59);
+    const ym = `${y}${String(m + 1).padStart(2, '0')}`;
+
+    const defs = [
+      { key: 'fukunokami', name: '福の神受け取り' },
+      { key: 'card',       name: 'ボスカード受け取り' },
+      { key: 'ticket',     name: 'プレチケ受け取り' },
+    ];
+
+    return defs.map(d => ({
+      id: `xday_${d.key}_${ym}`,
+      name: d.name,
+      startDateTime: fmtLocalISO(start),
+      endDateTime: fmtLocalISO(end),
+      resetType: 'once',
+    }));
+  }
+
+  // ===== 期間限定イベント（ローカル手入力）=====
+  // 管理人が配信するイベントJSON（EVENTS_URL）の更新が滞っている間の代替手段として、
+  // ユーザー自身が端末内に期間限定イベントを登録できるようにする。
+  // 保存キーは admin JSON 側のイベント（getLimCheckKey は event.id ベース）と衝突しないよう
+  // id に必ず "custom_" プレフィックスを付与し、名前空間を分離する。
+
+  let customEventSeq = 1;
+
+  /** ローカル保存されたカスタムイベント一覧を返す */
+  function loadCustomEvents() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_EVENTS);
+      const list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) return [];
+      const nums = list
+        .map(e => parseInt(String(e.id).replace('custom_', ''), 10))
+        .filter(n => !isNaN(n));
+      customEventSeq = (nums.length ? Math.max(...nums) : 0) + 1;
+      return list;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /** カスタムイベント一覧を保存する */
+  function saveCustomEvents(list) {
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_EVENTS, JSON.stringify(list));
+  }
+
+  /**
+   * カスタムイベントを追加する
+   * @param {{name:string, startDateTime:string, endDateTime:string, resetType:string}} input
+   * @returns {boolean} 成功したか
+   */
+  function addCustomEvent(input) {
+    const name = (input.name || '').trim();
+    if (!name) { showToast('イベント名を入力してください', 'error'); return false; }
+
+    const start = parseToJST(input.startDateTime);
+    const end   = parseToJST(input.endDateTime);
+    if (!start || !end) { showToast('開始・終了日時を正しく入力してください', 'error'); return false; }
+    if (start >= end)   { showToast('終了日時は開始日時より後にしてください', 'error'); return false; }
+
+    const resetType = ['once', 'daily', 'weekly'].includes(input.resetType) ? input.resetType : 'once';
+
+    const list = loadCustomEvents();
+    list.push({
+      id: `custom_${customEventSeq++}`,
+      name,
+      startDateTime: start.toISOString(),
+      endDateTime: end.toISOString(),
+      resetType,
+    });
+    saveCustomEvents(list);
+    return true;
+  }
+
+  /** カスタムイベントを削除する（保存されているチェック状態も併せて破棄） */
+  function deleteCustomEvent(eventId) {
+    const list = loadCustomEvents().filter(e => e.id !== eventId);
+    saveCustomEvents(list);
+    // 当該イベントに紐づくチェック状態を掃除
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(`${STORAGE_KEYS.LIM_CHECKS}_${eventId}_`)) localStorage.removeItem(k);
+    }
+  }
+
+  const RESET_TYPE_LABEL = { once: '期間中1回', daily: '毎日', weekly: '毎週' };
+
+  /** イベント管理画面（追加フォーム + 登録済み一覧）を表示する */
+  function showCustomEventManager() {
+    const DIALOG_ID = 'checker-event-manager-dialog';
+    const prev = document.getElementById(DIALOG_ID);
+    if (prev) prev.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = DIALOG_ID;
+    overlay.style.cssText = [
+      'position:fixed;inset:0;background:rgba(0,0,0,0.55);',
+      'z-index:10600;display:flex;align-items:center;justify-content:center;padding:16px;'
+    ].join('');
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#1e293b;color:#fff;border-radius:16px;',
+      'padding:20px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;',
+      'box-shadow:0 16px 40px rgba(0,0,0,0.5);font-size:14px;'
+    ].join('');
+
+    const title = document.createElement('p');
+    title.textContent = '🗓 期間限定イベント管理（手入力・端末内保存）';
+    title.style.cssText = 'margin:0 0 4px;font-weight:bold;line-height:1.5;';
+    box.appendChild(title);
+
+    const desc = document.createElement('p');
+    desc.textContent = '配信イベントデータとは別に、この端末だけで有効なイベントを追加できます。';
+    desc.style.cssText = 'margin:0 0 12px;font-size:12px;opacity:0.75;line-height:1.4;';
+    box.appendChild(desc);
+
+    const inputStyle = [
+      'width:100%;padding:8px;font-size:13px;box-sizing:border-box;',
+      'background:#0f172a;color:#e5e7eb;border:1px solid #475569;',
+      'border-radius:8px;'
+    ].join('');
+
+    // ----- 追加フォーム -----
+    const form = document.createElement('div');
+    form.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #334155;';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'イベント名';
+    nameInput.style.cssText = inputStyle;
+
+    const startLabel = document.createElement('label');
+    startLabel.style.cssText = 'font-size:11px;opacity:0.75;';
+    startLabel.textContent = '開始日時';
+    const startInput = document.createElement('input');
+    startInput.type = 'datetime-local';
+    startInput.style.cssText = inputStyle;
+
+    const endLabel = document.createElement('label');
+    endLabel.style.cssText = 'font-size:11px;opacity:0.75;';
+    endLabel.textContent = '終了日時';
+    const endInput = document.createElement('input');
+    endInput.type = 'datetime-local';
+    endInput.style.cssText = inputStyle;
+
+    const resetSelect = document.createElement('select');
+    resetSelect.style.cssText = inputStyle;
+    for (const [value, label] of Object.entries(RESET_TYPE_LABEL)) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.innerText = `チェック周期：${label}`;
+      resetSelect.appendChild(opt);
+    }
+
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '＋ このイベントを追加';
+    addBtn.style.cssText = [
+      'padding:8px;background:#0066cc;color:#fff;',
+      'border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:bold;'
+    ].join('');
+
+    form.appendChild(nameInput);
+    form.appendChild(startLabel);
+    form.appendChild(startInput);
+    form.appendChild(endLabel);
+    form.appendChild(endInput);
+    form.appendChild(resetSelect);
+    form.appendChild(addBtn);
+    box.appendChild(form);
+
+    // ----- 登録済み一覧 -----
+    const listTitle = document.createElement('p');
+    listTitle.textContent = '登録済みイベント';
+    listTitle.style.cssText = 'margin:0 0 8px;font-size:12px;font-weight:bold;opacity:0.85;';
+    box.appendChild(listTitle);
+
+    const listWrap = document.createElement('div');
+    listWrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:14px;';
+    box.appendChild(listWrap);
+
+    function renderList() {
+      listWrap.innerHTML = '';
+      const list = loadCustomEvents();
+      if (!list.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:12px;opacity:0.6;text-align:center;padding:10px;';
+        empty.textContent = '登録済みのイベントはありません';
+        listWrap.appendChild(empty);
+        return;
+      }
+      for (const ev of list) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px;background:#0f172a;border-radius:10px;';
+
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;font-size:12px;line-height:1.5;';
+
+        const nameLine = document.createElement('div');
+        nameLine.style.fontWeight = 'bold';
+        nameLine.textContent = ev.name;
+        info.appendChild(nameLine);
+
+        const periodLine = document.createElement('div');
+        periodLine.style.cssText = 'opacity:0.7;font-size:11px;';
+        periodLine.textContent = `${getEventPeriodStr(ev)}（${RESET_TYPE_LABEL[ev.resetType] || ev.resetType}）`;
+        info.appendChild(periodLine);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '削除';
+        delBtn.style.cssText = 'background:#7f1d1d;color:#fecaca;border:none;padding:6px 12px;border-radius:16px;font-size:11px;cursor:pointer;';
+        delBtn.addEventListener('click', () => {
+          deleteCustomEvent(ev.id);
+          renderList();
+          renderAll();
+        });
+
+        row.appendChild(info);
+        row.appendChild(delBtn);
+        listWrap.appendChild(row);
+      }
+    }
+    renderList();
+
+    addBtn.addEventListener('click', () => {
+      const ok = addCustomEvent({
+        name: nameInput.value,
+        startDateTime: startInput.value,
+        endDateTime: endInput.value,
+        resetType: resetSelect.value,
+      });
+      if (ok) {
+        nameInput.value = '';
+        startInput.value = '';
+        endInput.value = '';
+        renderList();
+        renderAll();
+        showToast('✓ イベントを追加しました', 'success');
+      }
+    });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '閉じる';
+    closeBtn.style.cssText = [
+      'width:100%;padding:8px;background:#374151;color:#fff;',
+      'border:none;border-radius:10px;cursor:pointer;font-size:13px;'
+    ].join('');
+    closeBtn.onclick = () => overlay.remove();
+    box.appendChild(closeBtn);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
+
+
+  async function renderDetailTable(targetDate) {
     const container = document.getElementById('detailTableContainer');
     if (!container) return;
 
-    const today = getJSTNow();
+    const today = targetDate;
     const rowStyle  = 'padding:5px 8px;border-bottom:1px solid #e2edf2;';
     const secStyle  = 'padding:6px 8px;background:#e9edf2;font-weight:bold;text-align:left;';
 
@@ -987,20 +1496,21 @@
       html += `<tr><td style="${rowStyle}">${escapeHtml(name)}</td><td style="${rowStyle}">${escapeHtml(detail)}</td></tr>`;
     }
 
-    let events = [];
-    try {
-      const res = await fetch(EVENTS_URL, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (validateEventData(data)) {
-          events = data.events.filter(e => isEventActive(e, today));
-        }
-      }
-    } catch (e) { /* ネットワークエラーは無視 */ }
+    const allEvents = await loadCheckerEvents(targetDate);
+    const events = allEvents.filter(e => isEventActive(e, today));
 
     if (events.length) {
       html += `<tr class="detail-section-row"><td colspan="2" style="${secStyle}">▼ イベント</td></tr>`;
       for (const event of events) {
+        html += `<tr><td style="${rowStyle}">${escapeHtml(event.name)}</td>`
+          + `<td style="${rowStyle}">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
+      }
+    }
+
+    const customEvents = loadCustomEvents().filter(e => isEventActive(e, today));
+    if (customEvents.length) {
+      html += `<tr class="detail-section-row"><td colspan="2" style="${secStyle}">▼ 期間限定イベント（手入力）</td></tr>`;
+      for (const event of customEvents) {
         html += `<tr><td style="${rowStyle}">${escapeHtml(event.name)}</td>`
           + `<td style="${rowStyle}">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
       }
@@ -1110,24 +1620,18 @@
   }
 
   async function renderEventRows(leftTbody, rightTbody, targetDate) {
-    let events = [];
-    try {
-      const res = await fetch(EVENTS_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!validateEventData(data)) return;
-      events = data.events.filter(e => isEventActive(e, targetDate));
-    } catch (e) {
-      console.error('イベント取得失敗:', e);
-      return;
-    }
-    if (!events.length) return;
+    const allEvents = await loadCheckerEvents(targetDate);
+    const events = allEvents.filter(e => isEventActive(e, targetDate));
+
+    const customEvents = loadCustomEvents().filter(e => isEventActive(e, targetDate));
+    const recurringEvents = getRecurringEvents(targetDate).filter(e => isEventActive(e, targetDate));
 
     const dailyEvents = events.filter(e => e.resetType === 'daily');
-    const otherEvents = events.filter(e => e.resetType !== 'daily');
+    const otherEvents = events.filter(e => e.resetType !== 'daily').concat(recurringEvents);
 
     if (dailyEvents.length) buildEventSectionRows(dailyEvents, '▼ イベント（毎日）',       leftTbody, rightTbody, targetDate);
     if (otherEvents.length) buildEventSectionRows(otherEvents, '▼ イベント（期間中1回）', leftTbody, rightTbody, targetDate);
+    if (customEvents.length) buildEventSectionRows(customEvents, '▼ 期間限定イベント（手入力）', leftTbody, rightTbody, targetDate);
 
     requestAnimationFrame(syncRowHeights);
   }
@@ -1194,6 +1698,13 @@
       todayInfo.innerHTML =
         `<div>📆 ${targetDate.getMonth() + 1}/${targetDate.getDate()}</div>`
         + `<div>✅ 各6時リセット</div>`;
+      const updateLabels = getTodayUpdateLabels(targetDate);
+      if (updateLabels.length) {
+        const updateDiv = document.createElement('div');
+        updateDiv.className = 'today-update-banner';
+        updateDiv.innerText = `🎉 今日は${updateLabels.join('・')}の更新日です！`;
+        todayInfo.appendChild(updateDiv);
+      }
     }
 
     // キャラクターヘッダー行
@@ -1317,13 +1828,17 @@
           td.classList.add('edit-mode-cell');
           td.appendChild(createEditLockBtn(disabled, () => toggleDisabled(item.key, char.id)));
         } else if (!isHiddenRow) {
-          // 昏冥庫パニガルムが開催期間外の場合はチェック不可
-          let isKonmeikuClosed = false;
+          // 昏冥庫パニガルム／まもの博士(同盟)が開催期間外の場合はチェック不可
+          let isPeriodClosed = false;
           if (item.taskId === 'konmeiku') {
             const day = getEffectiveDate(targetDate).getDate();
-            isKonmeikuClosed = !((day >= 1 && day <= 5) || (day >= 15 && day <= 20));
+            isPeriodClosed = !((day >= 1 && day <= 5) || (day >= 15 && day <= 20));
+          } else if (item.taskId === 'mamono_alliance') {
+            // 毎月20日6:00〜26日5:59（実効日基準で20〜25日）のみ開催、ボス等の移行はなし
+            const day = getEffectiveDate(targetDate).getDate();
+            isPeriodClosed = !(day >= 20 && day <= 25);
           }
-          if (isKonmeikuClosed) {
+          if (isPeriodClosed) {
             const cb = document.createElement('input');
             cb.type    = 'checkbox';
             cb.disabled = true;
@@ -1343,12 +1858,9 @@
       rightTbody.appendChild(rRow);
     }
 
-    renderEventRows(leftTbody, rightTbody, targetDate).then(() => {
-      requestAnimationFrame(syncRowHeights);
-    });
-
-    requestAnimationFrame(syncRowHeights);
-    renderDetailTable();
+    renderEventRows(leftTbody, rightTbody, targetDate)
+      .then(() => renderDetailTable(targetDate))
+      .finally(() => requestAnimationFrame(syncRowHeights));
   }
 
   // ===== スタイル =====
@@ -1368,14 +1880,16 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 .edit-mode-active { background: #10b981 !important; color: white !important; }
 .export-btn { background: #10b981 !important; color: white !important; }
 .import-btn { background: #8b5cf6 !important; color: white !important; }
+.event-manage-btn { background: #0ea5e9 !important; color: white !important; }
 
 /* 今日情報カード */
 .today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
+.today-update-banner { width: 100%; margin-top: 4px; font-weight: 700; color: #b45309; }
 
 /* 分割テーブルレイアウト */
 #tableWrapper { display: flex; align-items: flex-start; width: 100%; overflow: hidden; }
 #leftPanel    { flex-shrink: 0; overflow: hidden; border-right: 2px solid #94a8c2; background: inherit; position: relative; z-index: 5; }
-#rightPanel   { flex: 1; overflow-x: auto; overflow-y: hidden; }
+#rightPanel   { flex: 1; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
 #leftTable, #rightTable { border-collapse: collapse; font-size: 0.7rem; }
 #leftTable  { width: 100%; }
 #rightTable { width: max-content; min-width: 100%; }
@@ -1486,7 +2000,8 @@ body.dark-mode #rightPanel   { background: #111827; }
     <button id="addCharBtn"   class="add-btn">＋ 追加</button>
     <button id="editModeBtn"  class="edit-btn">✏️ 編集モード</button>
     <button id="exportBtn"    class="export-btn">📋 書き出し</button>
-    <button id="importBtn"    class="import-btn">📥 読み込み</button>
+    <button id="importBtn"    class="import-btn">📥 読み込み(上書き)</button>
+    <button id="eventManageBtn" class="event-manage-btn">🗓 イベント管理</button>
   </div>
   <div id="todayInfo" class="today-card"></div>
   <div id="tableWrapper">
@@ -1515,6 +2030,7 @@ body.dark-mode #rightPanel   { background: #111827; }
       document.getElementById('editModeBtn').addEventListener('click', toggleEditMode);
       document.getElementById('exportBtn').addEventListener('click', exportSpell);
       document.getElementById('importBtn').addEventListener('click', showImportDialog);
+      document.getElementById('eventManageBtn').addEventListener('click', showCustomEventManager);
 
       window.addEventListener('resize', syncRowHeights);
 
