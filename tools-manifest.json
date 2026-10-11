@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.8s",
-  "updatedAt": "2026-10-01",
+  "launcherVersion": "1.2.0s",
+  "updatedAt": "2026-10-10",
   "tools": [
     {
       "id": "Checker",
@@ -34,15 +34,14 @@
       "cache": true
     },
     {
-      "id": "kaji",
-      "name": "鍛冶職人シミュレーター",
-      "icon": "🔨",
-      "desc": "鍛冶シミュレーター",
-      "url": "./tools/kaji.js",
-      "renderFn": "Kaji.render",
-      "ver": "1.0.5",
-      "cache": true,
-      "defaultHidden": true
+      "id": "durability",
+      "name": "デュラハーン耐久シミュレーター",
+      "icon": "🛡️",
+      "desc": "通常攻撃・ふりまわしの被ダメージ",
+      "url": "./tools/durability.js",
+      "renderFn": "Durahan.render",
+      "ver": "1.0.2",
+      "cache": true
     },
     {
       "id": "help",

@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.8s';
+const APP_VERSION = '1.2.0s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -121,6 +121,7 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         { id: 'Checker',  url: './tools/checker.js'          },
         { id: 'exp-m',    url: './tools/expmercenary.js'     },
         { id: 'versions', url: './tools/version_selector.js' },
+        { id: 'durability', url: './tools/durability.js' },
         { id: 'help',     url: './tools/help.js'             },
         { id: 'settings', url: './tools/settings.js'         },
         { id: 'install',  url: './tools/install.js'          },
@@ -372,10 +373,21 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 650);
     }
 
-    // バックグラウンドチェック完了 OR 最低2秒のどちらか遅い方で閉じる
+    // 背景確認・起動時バージョン確認・最低2秒をすべて満たしてから閉じる
     const minWait = new Promise(r => setTimeout(r, 2000));
-    Promise.all([window.DQX_BG_CHECK_PROMISE.catch(() => {}), minWait])
-        .then(closeOverlay);
+    const manifestCheck = window.DQX_MANIFEST_FETCH_PROMISE || Promise.resolve(null);
+    Promise.all([
+        window.DQX_BG_CHECK_PROMISE.catch(() => {}),
+        manifestCheck.catch(() => null),
+        minWait
+    ]).then(() => {
+        if (window.DQX_NET_STATE === 'update') {
+            label.textContent = '新しいバージョンを適用しています…';
+            window.clearDqxCachesAndReload();
+            return;
+        }
+        closeOverlay();
+    });
 
     window.dqxCloseLoadingOverlay = closeOverlay;
 })();
@@ -399,23 +411,25 @@ window.DQX_RELEASE_NOTES_PROMISE = fetch('./release-notes.json?v=' + Date.now(),
 // manifest が改ざんされても window.eval 等の危険なプロパティを呼べないようにする。
 const ALLOWED_RENDER_PREFIXES = [
     'Checker.', 'Expmercenary.', 'VersionSelector.',
-    'Help.', 'Settings.', 'Install.', 'Kaji.'
+    'Help.', 'Settings.', 'Install.', 'Durahan.'
 ];
 function isAllowedRenderFn(renderFn) {
     return ALLOWED_RENDER_PREFIXES.some((prefix) => renderFn.startsWith(prefix));
 }
 
 function checkVersionUpdate() {
+    // 更新適用の再読み込みが控えている起動では、通知も保存済みバージョンの更新も
+    // 行わない。ここで更新すると、スプラッシュの裏で通知が出て見えないまま
+    // 基準値だけ書き換わり、再読み込み後に「アップデートされました」が出なくなる。
+    if (typeof window.dqxReloadPending === 'function' && window.dqxReloadPending()) return;
     const storedVersion = localStorage.getItem(STORAGE_KEYS.APP_VERSION);
     if (storedVersion && storedVersion !== APP_VERSION) {
-        setTimeout(() => {
-            if (typeof window.dqxShowToast === 'function') {
-                window.dqxShowToast(
-                    `アップデートされました！ ${storedVersion} → ${APP_VERSION}`,
-                    { variant: 'success', duration: 6000 }
-                );
-            }
-        }, 500);
+        const message = `アップデートされました！ ${storedVersion} → ${APP_VERSION}`;
+        if (typeof window.dqxQueueStartupNotice === 'function') {
+            window.dqxQueueStartupNotice('update', message);
+        } else if (typeof window.dqxShowToast === 'function') {
+            window.dqxShowToast(message, { variant: 'success', duration: 6000 });
+        }
     }
     localStorage.setItem(STORAGE_KEYS.APP_VERSION, APP_VERSION);
 }
@@ -500,7 +514,8 @@ const DQXTools = {
             const allowed = allowedLocal.includes(key)
                 || key.startsWith('dqx_check_final10_')
                 || key.startsWith('dqx_limited_checks_v3_')
-                || key.startsWith('dqx_guide_seen_');
+                || key.startsWith('dqx_guide_seen_')
+                || key.startsWith('dqx_custom_events');
             if (!allowed) {
                 try {
                     localStorage.removeItem(key);
@@ -1447,6 +1462,13 @@ const DQXTools = {
         }
         // 多重起動防止（resize等で複数回呼ばれても二重表示しない）
         if (document.getElementById('dqx-guide-overlay')) return;
+
+        // 表示した時点で既読にする。
+        // 最後まで進める／閉じるまで既読にしない方式だと、ガイド表示中に
+        // 再読み込み（更新検知・6時またぎ等）や画面離脱が起きた場合に
+        // 未読のままとなり、次回の起動で再度勝手に表示されてしまうため。
+        // 見直しは設定画面から可能（force=true は既読フラグを無視して表示する）。
+        try { localStorage.setItem(guideKey, '1'); } catch (e) { /* noop */ }
 
         let idx = 0;
 

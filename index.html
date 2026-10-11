@@ -143,6 +143,7 @@
         }
         #dqx-update-toast .dqx-toast-body {
             flex: 1;
+            white-space: pre-line;
         }
         #dqx-update-toast .dqx-toast-close {
             background: rgba(255,255,255,0.15);
@@ -174,7 +175,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.8s';
+        window.HTML_VERSION = '1.2.0s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -187,7 +188,28 @@
         // ツール内スクロール領域で下端まで行った後に上へ戻る操作まで誤って
         // 抑制していた。この重複ハンドラが本来の症状の原因だったため削除。
 
+        // 「この後すぐ再読み込みされる」ことを示す共通フラグ。
+        // 起動時の通知（アップデート済み／新規ツール追加）や保存済み基準値の更新を
+        // 再読み込み前に消費してしまわないよう、各所で参照する。
+        // DQX_NET_STATE === 'update' は、起動スプラッシュが更新適用のために
+        // 再読み込みを行う条件と同一。
+        window.DQX_RELOAD_PENDING = false;
+        window.dqxReloadPending = function() {
+            return window.DQX_RELOAD_PENDING === true || window.DQX_NET_STATE === 'update';
+        };
+
+        // 起動スプラッシュ(#dqx-loading-overlay)が消えてから実行する。
+        // スプラッシュの裏でトーストが表示されて見えないまま消えるのを防ぐ。
+        window.dqxAfterSplash = function(cb) {
+            const tick = () => {
+                if (document.getElementById('dqx-loading-overlay')) setTimeout(tick, 200);
+                else setTimeout(cb, 300);
+            };
+            tick();
+        };
+
         async function clearDqxCachesAndReload() {
+            window.DQX_RELOAD_PENDING = true;
             if ('caches' in window) {
                 try {
                     const cacheNames = await caches.keys();
@@ -245,6 +267,7 @@
             const reloadCount = parseInt(sessionStorage.getItem(window.RELOAD_KEY)) || 0;
             if (reloadCount < window.MAX_RELOAD) {
                 sessionStorage.setItem(window.RELOAD_KEY, reloadCount + 1);
+                window.DQX_RELOAD_PENDING = true;
                 window.dqxShowToast(
                     `バージョン情報が一致しません。再読み込みします。（${reloadCount + 1}/${window.MAX_RELOAD}）`,
                     { duration: 2500 }
@@ -302,6 +325,45 @@
             };
             close.onclick = hide;
             if (duration > 0) setTimeout(hide, duration);
+        };
+
+        // 起動時のアップデート通知と新規ツール通知は、同じトーストにまとめる。
+        const dqxStartupNotices = { update: null, newTools: [], offline: null };
+        let dqxStartupNoticeScheduled = false;
+        window.dqxQueueStartupNotice = function(type, value) {
+            if (type === 'update') {
+                dqxStartupNotices.update = value;
+            } else if (type === 'newTools') {
+                dqxStartupNotices.newTools.push(...value);
+            } else if (type === 'offline') {
+                dqxStartupNotices.offline = value;
+            } else {
+                console.warn('[Startup Notice] unknown notice type:', type);
+                return;
+            }
+
+            if (dqxStartupNoticeScheduled) return;
+            dqxStartupNoticeScheduled = true;
+            window.dqxAfterSplash(() => {
+                const messages = [];
+                if (dqxStartupNotices.update) messages.push(dqxStartupNotices.update);
+                if (dqxStartupNotices.newTools.length > 0) {
+                    messages.push(`新しいツールが追加されました：${dqxStartupNotices.newTools.join('、')}`);
+                }
+                if (dqxStartupNotices.offline) messages.push(dqxStartupNotices.offline);
+                if (messages.length > 0) {
+                    // オフライン通知のみの場合は成功色ではなく通常色で表示する
+                    const onlyOffline = !dqxStartupNotices.update && dqxStartupNotices.newTools.length === 0;
+                    window.dqxShowToast(messages.join('\n'), {
+                        variant: onlyOffline ? 'info' : 'success',
+                        duration: 8000
+                    });
+                }
+                dqxStartupNotices.update = null;
+                dqxStartupNotices.offline = null;
+                dqxStartupNotices.newTools = [];
+                dqxStartupNoticeScheduled = false;
+            });
         };
 
         // ========== ネットワーク状態インジケーター ==========
@@ -380,14 +442,24 @@
         // 二重に fetch が発生し、後勝ちの結果次第で状態表示がちらつく／矛盾する。
         // そのため実行中の Promise を使い回して二重発火を防ぐ。
         window.DQX_CHECK_VERSION_INFLIGHT = null;
-        window.dqxCheckVersion = function() {
+        // opts.timeoutMs を渡した呼び出しのみ fetch に上限を設ける（起動時専用）。
+        // 未指定の呼び出し（ツール遷移・復帰・オンライン復帰など）は従来どおり無制限。
+        window.DQX_STARTUP_CHECK_TIMEOUT_MS = 4250;
+        window.dqxCheckVersion = function(opts) {
             if (window.DQX_NET_STATE === 'update') return Promise.resolve(null);
             if (window.DQX_CHECK_VERSION_INFLIGHT) return window.DQX_CHECK_VERSION_INFLIGHT;
 
             window.DQX_NET_STATE = 'checking';
             window.dqxUpdateNetIndicator();
 
-            const promise = fetch('./tools-manifest.json?v=' + Date.now(), { cache: 'no-store' })
+            const timeoutMs = opts && opts.timeoutMs;
+            const ctrl  = timeoutMs ? new AbortController() : null;
+            const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+
+            const promise = fetch('./tools-manifest.json?v=' + Date.now(), {
+                    cache: 'no-store',
+                    signal: ctrl ? ctrl.signal : undefined
+                })
                 .then((res) => { if (!res.ok) throw new Error(res.status); return res.json(); })
                 .then((data) => {
                     window.DQX_LAST_MANIFEST_CHECK = new Date();
@@ -413,6 +485,7 @@
                     return null;
                 })
                 .finally(() => {
+                    if (timer) clearTimeout(timer);
                     window.DQX_CHECK_VERSION_INFLIGHT = null;
                 });
 
@@ -445,8 +518,25 @@
         // 起動のたびに localStorage のマニフェストバージョンをリセットすると
         // 比較基準が失われるため、ここでは削除しない。
         // 古いキャッシュは dqxCheckVersion() が fetch した結果で自然に上書きされる。
+        // 起動時のマニフェスト取得に失敗した場合の保険。
+        // Service Worker が保存している直近の tools-manifest.json を Cache Storage から
+        // 直接読む。これにより、固定の FALLBACK_TOOLS（手動保守が必要で、新規ツールが
+        // 欠落しやすい）に落ちる前に、直近の正しいツール一覧で起動できる。
+        async function dqxLoadCachedManifest() {
+            try {
+                if (!('caches' in window)) return null;
+                const res = await caches.match('./tools-manifest.json');
+                if (!res) return null;
+                const data = await res.json();
+                return (data && Array.isArray(data.tools) && data.tools.length > 0) ? data : null;
+            } catch (e) {
+                console.warn('[Manifest Cache] 読み込み失敗', e);
+                return null;
+            }
+        }
+
         window.DQX_REMOTE_MANIFEST        = null;
-        window.DQX_MANIFEST_FETCH_PROMISE = window.dqxCheckVersion()
+        window.DQX_MANIFEST_FETCH_PROMISE = window.dqxCheckVersion({ timeoutMs: window.DQX_STARTUP_CHECK_TIMEOUT_MS })
             .then((data) => {
                 if (data) {
                     window.DQX_REMOTE_MANIFEST = data;
@@ -458,20 +548,22 @@
                 // （navigator.onLine を信用した即断は誤検知の原因になっていたため廃止）
                 return new Promise((resolve) => {
                     setTimeout(() => {
-                        window.dqxCheckVersion().then((retryData) => {
+                        window.dqxCheckVersion({ timeoutMs: window.DQX_STARTUP_CHECK_TIMEOUT_MS }).then((retryData) => {
                             if (retryData) {
                                 window.DQX_REMOTE_MANIFEST = retryData;
                                 resolve(retryData);
                                 return;
                             }
-                            document.addEventListener('DOMContentLoaded', function() {
-                                setTimeout(() => {
-                                    window.dqxShowToast(
-                                        'オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。'
-                                    );
-                                }, 600);
+                            // 取得に失敗。保存済みのマニフェストがあればそれで起動し、
+                            // 無い場合のみ registerAllTools 側で FALLBACK_TOOLS を使う。
+                            // 通知は DOMContentLoaded を待たず、起動時通知キュー経由で
+                            // スプラッシュ終了後に表示する
+                            // （従来はこの時点で DOMContentLoaded が発火済みのため一度も表示されなかった）。
+                            dqxLoadCachedManifest().then((cached) => {
+                                window.dqxQueueStartupNotice('offline',
+                                    'オフラインのため最新情報を確認できませんでした。保存済みのデータで起動しています。');
+                                resolve(cached);
                             });
-                            resolve(null);
                         });
                     }, 1500);
                 });
@@ -562,7 +654,7 @@ const FALLBACK_TOOLS = [
     { id: 'Checker',  name: '進捗チェッカー',        icon: '📋', desc: '日課・週課・隔週・月課',              url: './tools/checker.js',          renderFn: 'Checker.render' },
     { id: 'exp-m',    name: '傭兵ログトラッカー',              icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js',      renderFn: 'Expmercenary.render' },
     { id: 'versions', name: '傭兵ログトラッカー<br>旧ver',     icon: '📜', desc: '旧verセレクタ',          url: './tools/version_selector.js',  renderFn: 'VersionSelector.render' },
-    { id: 'kaji',     name: '鍛冶職人シミュレーター',          icon: '🔨', desc: '鍛冶シミュレーター',     url: './tools/kaji.js',              renderFn: 'Kaji.render', defaultHidden: true },
+    { id: 'durability', name: 'デュラハーン耐久シミュレーター', icon: '🛡️', desc: '通常攻撃・ふりまわしの被ダメージ', url: './tools/durability.js', renderFn: 'Durahan.render' },
     { id: 'help',     name: '取扱説明書',                      icon: '📖', desc: '使い方<br>Q&A',          url: './tools/help.js',              renderFn: 'Help.render' },
     { id: 'settings', name: '設定',                            icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js',     renderFn: 'Settings.render' },
     { id: 'install',  name: 'アプリの<br>使い方',              icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js',      renderFn: 'Install.render', hideInMenu: true }
@@ -610,20 +702,31 @@ function registerAllTools(manifestData) {
 
     DQXTools.init('dqx-app');
 
+    // 更新適用のための再読み込みが控えている場合（起動スプラッシュが
+    // clearDqxCachesAndReload を呼ぶ）は、既知IDの更新と新規ツール通知を
+    // 再読み込み後に回す。ここで更新すると、スプラッシュの裏で通知が出て
+    // 見えないまま既知IDだけ書き換わり、通知が失われるため。
+    const pendingReload = window.dqxReloadPending();
+
     // 初回起動（knownIds === null）は通知しない
-    if (knownIds !== null) {
+    if (knownIds !== null && !pendingReload) {
         const newIds = currentIds.filter((id) => !knownIds.includes(id));
         if (newIds.length > 0) {
             const newNames = toolList
                 .filter((t) => newIds.includes(t.id))
-                .map((t) => t.name.replace(/<br>/g, ''))
-                .join('、');
-            setTimeout(() => {
-                window.dqxShowToast(`新しいツールが追加されました：${newNames}`, { variant: 'success', duration: 7000 });
-            }, 800);
+                .map((t) => t.name.replace(/<br>/g, ''));
+            if (typeof window.dqxQueueStartupNotice === 'function') {
+                window.dqxQueueStartupNotice('newTools', newNames);
+            } else {
+                window.dqxAfterSplash(() => {
+                    window.dqxShowToast(`新しいツールが追加されました：${newNames.join('、')}`, { variant: 'success', duration: 7000 });
+                });
+            }
         }
     }
-    localStorage.setItem('dqx_known_tool_ids', JSON.stringify(currentIds));
+    if (!pendingReload) {
+        localStorage.setItem('dqx_known_tool_ids', JSON.stringify(currentIds));
+    }
 }
 
 window.addEventListener('load', function() {
