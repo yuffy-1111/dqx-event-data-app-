@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.6.0 ==========
+// ========== 傭兵用多機能ツール ver2.7.0 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -15,6 +15,13 @@
 // [FEATURE]  履歴の変更（条件編集/呼び数/お供/削除/引出/通帳切替）に応じて、以降の通帳・溢れ行を
 //            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
 //            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
+
+// [FEATURE]  強敵ボーナス率のプルダウン(自動/なし/+10/+15/+20/+25)と、職Lv・次までの経験値の入力による
+//            レベル自動推移を追加。履歴を時系列でたどって獲得経験値からレベルアップを判定し、
+//            自Lv-敵Lv の差で強敵ボーナス率を自動決定する。対象はデュラハーンのみ(敵Lv150。
+//            140→141で「かなり強そう+20%」→「強そう+15%」の境目から確定)。（ver2.7.0）
+//            ・レベルに加算する行: 通常/エンゼル/引出。通帳(通)への預入と溢れは加算しない（要実測確認）
+//            ・端数は切り上げ(ceil)。従来値 ceil(22802*0.2)=4561 と一致。+15/+25の端数処理は要実測確認
 
 // 変更履歴（ver2.0.0時点）:
 // [BUG] _recalcLaps: 削除後の lastLapSec 更新を正確化
@@ -61,7 +68,84 @@
     gn: 720, sn: 720, zucchini: 9010,
   };
 
-  const EXP_PER_LV = 1589326;
+  const EXP_PER_LV = 1589326;   // 121〜140Lvの1Lv分（141以降は LV_DIFF を参照すること）
+
+  // ─── レベル・必要経験値テーブル（極限攻略DB 職業レベルの必要経験値より。差分から都度積み上げる） ──
+  const LV_CAP = 143;
+  const LV_DIFF = (function () {
+    const fill = (n, v) => new Array(n).fill(v);
+    // Lv86〜143（初期職・追加職・マスター共通）
+    const common86 = [].concat(
+      [249346, 299346, 349346, 399346, 449346],
+      [599346, 749346, 959346],
+      fill(17, 959346),
+      [997720, 1036094, 1074468, 1112842, 1151216, 1189590, 1227964, 1266338, 1304712, 1343086],
+      [1378960, 1412334, 1443208, 1471582, 1497456, 1520830, 1541704, 1560078, 1575952],
+      fill(11, 1589326),
+      [1621112, 1668791, 1722827]
+    );
+    // 初期職 Lv2〜85
+    const base2to85 = [].concat(
+      [7, 15, 26, 40, 59, 87, 128, 184, 264, 370, 512, 691, 920, 1200, 1540, 1946, 2423, 2975, 3609],
+      [4324, 5127, 6012, 6985, 8036, 9165, 10364, 11629, 12961, 14359],
+      [15826, 17362, 18969, 20650, 22404, 24232, 26136, 28118, 30180, 32319],
+      [34541, 36844, 39231, 41704, 44262, 46907, 49641, 52464, 55381, 58387],
+      [61488, 67917, 71537, 75271, 79117, 83073, 87137, 91308, 95585, 99971],
+      [104464, 109062, 113764, 118569, 123479, 128492, 133606, 138820, 144133, 149547],
+      [155060, 160688, 166466, 172442, 178667, 185192, 192068],
+      fill(8, 199346)
+    );
+    // 追加職 Lv2〜85
+    const add2to85 = [].concat(
+      [9, 20, 35, 53, 79, 116, 171, 245, 352, 493, 682, 921, 1226, 1600, 2053, 2594, 3230, 3966, 4811],
+      [5764, 6834, 8014, 9311, 10712, 12217, 13815, 15501, 17277, 19141],
+      [21096, 23144, 25286, 27526, 29865, 32301, 34839, 37481, 40230, 43081],
+      [46043, 49113, 52295, 55591, 59001, 62527, 66171, 69935, 73823, 77830],
+      [81964, 90533, 95359, 100336, 105463, 110736, 116154, 121714, 127415, 133261],
+      [139251, 145380, 151647, 158052, 164598, 171280, 178097, 185047, 192129, 199346],
+      fill(15, 199346)
+    );
+    // マスター Lv100以降（Lv100は 99→100 の差分）
+    const masterFrom100 = [].concat(
+      [3660778],
+      [997720, 1035135, 1071615, 1107183, 1141862, 1175674, 1208641, 1240784, 1272123, 1302679],
+      [1332471, 1361518, 1389839, 1417452, 1444375, 1470625, 1496219, 1521173, 1545503, 1569225],
+      fill(20, 1589326),
+      [1621112, 1668791, 1722827]
+    );
+    // index = レベル（そのレベルに上がるための差分）。index 0,1 は 0
+    const idx = (arr) => [0, 0].concat(arr);
+    return {
+      base:   idx([].concat(base2to85, common86)),
+      add:    idx([].concat(add2to85,  common86)),
+      master: idx([].concat(add2to85, common86.slice(0, 14), masterFrom100)),
+    };
+  })();
+
+  // Lv lv → lv+1 に必要な経験値（上限Lvは0）
+  function lvNeed(job, lv) {
+    if (lv >= LV_CAP) return 0;
+    return (LV_DIFF[job] || LV_DIFF.add)[lv + 1] || 0;
+  }
+  // 獲得経験値を加算してレベルを進める（st = { job, lv, rem(次までの残り) }。破壊的）
+  function lvAdvance(st, gain) {
+    st.rem -= gain;
+    while (st.lv < LV_CAP && st.rem <= 0) {
+      st.lv++;
+      st.rem += lvNeed(st.job, st.lv);
+    }
+    if (st.lv >= LV_CAP) st.rem = Math.max(0, st.rem);
+    return st;
+  }
+  // 自Lv-敵Lv → 強敵ボーナス(%)。ゲーム内「しらべる」の表（格下なし/同格+10/強そう+15/かなり強そう+20/手を出さない+25）
+  function strongRate(selfLv, enemyLv) {
+    const d = selfLv - enemyLv;
+    if (d >= 3)   return 0;
+    if (d >= -4)  return 10;
+    if (d >= -9)  return 15;
+    if (d >= -24) return 20;
+    return 25;
+  }
 
   const CALL_LABELS = ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
@@ -199,6 +283,8 @@
     let jobBtnLocked = false;      // 転職ボタン連打防止フラグ
     let flowSuspend  = 0;          // >0 の間は通帳振り分けの連動再計算を保留（複数行をまとめて追加する間）
     let flowBusy     = false;      // 連動再計算の再入防止
+    let lvAnchor     = null;       // レベル推移の起点 { job, lv, rem }（「設定」時点＝それまでの履歴を含んだ状態）
+    let lvNow        = null;       // 履歴をたどった現在のレベル状態 { job, lv, rem }（未設定ならnull）
 
     // DOM キャッシュ（render後に設定）
     let root = null;
@@ -216,24 +302,40 @@
 
     // ── 経験値計算 ───────────────────────────────────────────────────────
     function calcExp(callCount, partnerKey = "none", snap = null) {
-      let baseExp, bonusExp, fd, tr, ag, em, elixir, pbVal;
+      let baseExp, bonusExp, fd, tr, ag, em, elixir, pbVal, elv, sbSel, lvForAuto;
 
       if (snap) {
         const msOption = root.querySelector(`#ms option[value="${snap.ms}"]`);
         baseExp  = parseInt(msOption?.dataset.base)  || 0;
         bonusExp = parseInt(msOption?.dataset.bonus) || 0;
+        elv      = parseInt(msOption?.dataset.elv) || 0;
+        sbSel    = snap.sb ?? "20";                       // 旧データは従来の +20%
+        lvForAuto = snap.lv ?? null;
         ({ fd, tr, ag, em, elixir, pb: pbVal } = snap);
       } else {
         const sel = $("ms");
         const opt = sel.options[sel.selectedIndex];
         baseExp  = parseInt(opt.dataset.base)  || 0;
         bonusExp = parseInt(opt.dataset.bonus) || 0;
+        elv      = parseInt(opt.dataset.elv) || 0;
+        sbSel    = $("sb")?.value || "20";
+        lvForAuto = lvNow ? lvNow.lv : null;
         fd     = $("fd").checked;
         tr     = $("tr").checked;
         ag     = $("ag").checked;
         em     = $("em").checked;
         elixir = root.querySelector('input[name="e_exp"]:checked')?.value || "none";
         pbVal  = root.querySelector('input[name="pb"]:checked')?.value || "0";
+      }
+
+      // 強敵ボーナス: 敵Lv(data-elv)を持つモンスター（現状デュラハーンのみ）は、
+      //   自動 = 自Lv-敵Lv の表から決定（Lv未設定なら従来の+20%）／手動 = 選択した率
+      // 端数は切り上げ。他のモンスターは従来の固定値(data-bonus)のまま。
+      if (elv > 0) {
+        const pct = sbSel === "auto"
+          ? (lvForAuto != null ? strongRate(lvForAuto, elv) : 20)
+          : (parseInt(sbSel) || 0);
+        bonusExp = Math.ceil(baseExp * pct / 100);
       }
 
       let rate = 1.0;
@@ -469,6 +571,35 @@
     // グループ = main==="true" の行 + 直後に続く main!=="true" の戦闘行
     //            （通帳行+溢れ行+エンゼル行。全額溢れの場合は溢れ行がmain）
 
+    function snapOf(r) {
+      try { return JSON.parse(r.dataset.snapshot || "{}"); } catch (e) { return {}; }
+    }
+    // 「設定」時点までに存在した行（入力されたLv状態に既に含まれている行）
+    function isLvOld(r) { return snapOf(r).lo === 1; }
+    function stampLv(group, lv) {
+      group.forEach(r => {
+        const sn = snapOf(r);
+        if (sn.lv !== lv) { sn.lv = lv; r.dataset.snapshot = JSON.stringify(sn); }
+      });
+    }
+    function updateLvInfo() {
+      const el = $("lvInfo");
+      if (!el) return;
+      if (!lvNow) { el.textContent = "Lv未設定（自動=従来の+20%）"; return; }
+      const sel = $("ms");
+      const elv = parseInt(sel?.options[sel.selectedIndex]?.dataset.elv) || 0;
+      const sbv = $("sb")?.value || "20";
+      let tail = "";
+      if (elv) {
+        const pct = sbv === "auto" ? strongRate(lvNow.lv, elv) : (parseInt(sbv) || 0);
+        tail = ` / 強敵+${pct}%${sbv === "auto" ? "" : "(手動)"}`;
+      }
+      el.textContent = `Lv${lvNow.lv} 次まで${Math.max(0, Math.round(lvNow.rem)).toLocaleString()}${tail}`;
+      try {
+        localStorage.setItem(STORAGE_KEYS.LV, JSON.stringify({ job: lvNow.job, lv: lvNow.lv, rem: Math.round(lvNow.rem) }));
+      } catch (e) {}
+    }
+
     function isBattleRow(r) {
       const t = r.dataset.type;
       return t !== "lap_only" && t !== "job" && t !== "withdraw";
@@ -548,24 +679,39 @@
       flowBusy = true;
       let balance = 0;
       let structureChanged = false;
+      // レベル推移: 起点（設定時点＝既存行を含む状態）から、設定後の行だけを時系列で加算する
+      let st = lvAnchor ? { job: lvAnchor.job, lv: lvAnchor.lv, rem: lvAnchor.rem } : null;
       try {
         let i = 0;
         while (i < rowCache.length) {
           const r = rowCache[i];
           if (r.dataset.type === "withdraw") {
             balance = applyWithdraw(r, balance);
+            if (st && !isLvOld(r)) lvAdvance(st, parseFloat(r.dataset.val) || 0);   // 引出分はキャラの経験値になる
             i++;
           } else if (!isBattleRow(r)) {
             i++;
           } else {
             let j = i + 1;
             while (j < rowCache.length && isBattleRow(rowCache[j]) && rowCache[j].dataset.main !== "true") j++;
-            const res = allocateGroup(rowCache.slice(i, j), i, balance);
+            const grp = rowCache.slice(i, j);
+            const tracked = !!st && !isLvOld(grp[0]);
+            if (tracked) stampLv(grp, st.lv);            // この戦闘時点の自Lvを行に記録
+            const res = allocateGroup(grp, i, balance);
             balance += res.used;
             if (res.changed) structureChanged = true;
+            if (tracked) {
+              // 通常・エンゼル行のみ加算（通帳への預入・溢れは加算しない）
+              let gain = 0;
+              rowCache.slice(i, i + res.n).forEach(x => {
+                if (x.dataset.type === "normal" || x.dataset.type === "angel") gain += parseFloat(x.dataset.val) || 0;
+              });
+              lvAdvance(st, gain);
+            }
             i += res.n;
           }
         }
+        lvNow = st;
       } finally {
         flowBusy = false;
       }
@@ -618,6 +764,20 @@
       });
       monsterWrap.appendChild(monsterSel);
       grid.appendChild(monsterWrap);
+
+      const sbWrap = document.createElement("label");
+      sbWrap.className = "snapshot-editor-field";
+      sbWrap.innerHTML = '<span>強敵</span>';
+      const sbSelEl = document.createElement("select");
+      sbSelEl.className = "snapshot-editor-select";
+      [["auto", "自動(Lv連動)"], ["0", "なし"], ["10", "+10%"], ["15", "+15%"], ["20", "+20%"], ["25", "+25%"]].forEach(([v, t]) => {
+        const o = document.createElement("option");
+        o.value = v; o.textContent = t;
+        if (v === String(snap.sb ?? "20")) o.selected = true;
+        sbSelEl.appendChild(o);
+      });
+      sbWrap.appendChild(sbSelEl);
+      grid.appendChild(sbWrap);
 
       const buffWrap = document.createElement("div");
       buffWrap.className = "snapshot-editor-buffs";
@@ -694,7 +854,7 @@
         const pb = editor.querySelector(`input[name="snapshot-pb-${row.dataset.bid}"]:checked`)?.value || snap.pb || "0";
         const ms = monsterSel.value;
 
-        const nextSnapshot = { fd, tr, ag, em, elixir, pb, ms };
+        const nextSnapshot = { ...snap, fd, tr, ag, em, elixir, pb, ms, sb: sbSelEl.value };
         applyGroupSnapshot(row, nextSnapshot);
         editor.remove();
       };
@@ -743,6 +903,7 @@
         elixir: root.querySelector('input[name="e_exp"]:checked')?.value || "none",
         pb:     root.querySelector('input[name="pb"]:checked')?.value || "0",
         ms:     monsterId || $("ms").value,
+        sb:     $("sb")?.value || "20",
       };
       row.dataset.snapshot = JSON.stringify(snapshot);
 
@@ -991,6 +1152,7 @@
 
       optCallCount = lookupOptimalCallCount();
       if (autoSetCount) $("cn").value = optCallCount;
+      updateLvInfo();
 
       const callCount = parseInt($("cn").value);
       const expResult = calcExp(callCount);
@@ -1027,7 +1189,8 @@
     const STORAGE_KEYS = Object.freeze({
       SESSION: 'dqx_expm_session',
       ACTIVE: 'dqx_expm_active',
-      LAP_NOTIFY: 'dqx_lap_notify'
+      LAP_NOTIFY: 'dqx_lap_notify',
+      LV: 'dqx_expm_lv'
     });
     const STORAGE_KEY_SESSION = STORAGE_KEYS.SESSION;
     const STORAGE_KEY_ACTIVE  = STORAGE_KEYS.ACTIVE;
@@ -1059,6 +1222,7 @@
         em: $("em")?.checked ?? false,
         pb: root.querySelector('input[name="pb"]:checked')?.value || "0",
         cn: $("cn")?.value ?? null,
+        sb: $("sb")?.value || "20",
       };
     }
 
@@ -1066,7 +1230,7 @@
       try {
         localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify({
           startTime, pauseSec, lastLapSec, jobOffsetSec,
-          killCount, optCallCount, ritaOrKuma,
+          killCount, optCallCount, ritaOrKuma, lvAnchor,
           timerRunning: !!timerHandle,
           rows:    serializeRows(),
           options: captureOptionState(),
@@ -1098,6 +1262,8 @@
       jobBtnLocked      = false;
       flowSuspend       = 0;
       flowBusy          = false;
+      lvAnchor          = null;
+      lvNow             = null;
       rowCache.length   = 0;
     }
 
@@ -1129,7 +1295,12 @@
         // オプション（fd/tr/ag/em・通帳・呼び数）を先に復元する。
         // 通帳残高(syncPassbook)の計算は pb（通帳上限選択）に依存するため、
         // 行の再構築・updateTotal() より前に復元しておく必要がある。
+        if (data.lvAnchor && data.lvAnchor.job) {
+          lvAnchor = { job: data.lvAnchor.job, lv: data.lvAnchor.lv, rem: data.lvAnchor.rem };
+          if ($("lvJob")) $("lvJob").value = lvAnchor.job;
+        }
         if (data.options) {
+          if (data.options.sb && $("sb")) $("sb").value = data.options.sb;
           if ($("fd")) $("fd").checked = !!data.options.fd;
           if ($("tr")) $("tr").checked = !!data.options.tr;
           if ($("ag")) $("ag").checked = !!data.options.ag;
@@ -1233,7 +1404,7 @@ ${getStyles()}
     </div>
     <select id="ms" class="monster-select">
       <option value="returner"      data-base="13118" data-bonus="0">リターナーモア</option>
-      <option value="durahan"       data-base="22802" data-bonus="4561" selected>デュラハーン</option>
+      <option value="durahan"       data-base="22802" data-bonus="4561" data-elv="150" selected>デュラハーン</option>
       <option value="hell"          data-base="23990" data-bonus="4798">ヘルガーディアン</option>
       <option value="scare"         data-base="22904" data-bonus="4581">スケアフレイル</option>
       <option value="dearthlicant"  data-base="15191" data-bonus="0">ダースリカント</option>
@@ -1292,6 +1463,33 @@ ${getStyles()}
       </div>
     </div>
     <button id="btnTimerStop" class="btn-timer-stop">タイマー<br>開始</button>
+  </div>
+
+  <div class="lv-panel">
+    <div class="lv-row">
+      <label>強敵
+        <select id="sb" class="passbook-select" title="強敵ボーナス率（デュラハーンのみ適用）">
+          <option value="auto" selected>自動(Lv連動)</option>
+          <option value="0">なし</option>
+          <option value="10">+10%</option>
+          <option value="15">+15%</option>
+          <option value="20">+20%</option>
+          <option value="25">+25%</option>
+        </select>
+      </label>
+      <span id="lvInfo" class="lv-info"></span>
+    </div>
+    <div class="lv-row">
+      <select id="lvJob" class="passbook-select">
+        <option value="base">初期職</option>
+        <option value="add" selected>追加職</option>
+        <option value="master">マスター</option>
+      </select>
+      <label>Lv<input id="lvIn" type="number" min="1" max="143" inputmode="numeric" class="lv-num"></label>
+      <label>次まで<input id="lvRem" type="number" min="0" inputmode="numeric" class="lv-rem"></label>
+      <button id="btnLvSet" type="button" class="btn-teal lv-btn">設定</button>
+      <button id="btnLvClear" type="button" class="btn-warning lv-btn">解除</button>
+    </div>
   </div>
 
   <div class="row-total-calc">
@@ -1622,6 +1820,45 @@ ${getStyles()}
           .forEach(el => { el.onchange = () => updateUI(true); });
       $("cn").onchange = () => updateUI(false);
 
+      // ── レベル推移 ──
+      try {
+        const savedLv = JSON.parse(localStorage.getItem(STORAGE_KEYS.LV) || "null");
+        if (savedLv && savedLv.lv) {          // 前回の最終状態を入力欄に反映（「設定」で適用）
+          $("lvJob").value = savedLv.job || "add";
+          $("lvIn").value  = savedLv.lv;
+          $("lvRem").value = savedLv.rem;
+        }
+      } catch (e) {}
+      $("sb").onchange = () => updateUI(false);
+      $("btnLvSet").onclick = () => {
+        const job = $("lvJob").value;
+        const lv  = parseInt($("lvIn").value);
+        const rem = parseInt($("lvRem").value);
+        const info = $("lvInfo");
+        if (!(lv >= 1 && lv <= LV_CAP) || !(rem >= 0)) { info.textContent = "Lv(1〜143)と次までの経験値を入力してください"; return; }
+        if (lv < LV_CAP && rem > lvNeed(job, lv)) {
+          info.textContent = `Lv${lv}の次までは最大${lvNeed(job, lv).toLocaleString()}です（職種を確認）`;
+          return;
+        }
+        // 設定時点までの履歴は入力値に含まれるものとして扱う（以降の行だけが加算される）
+        rowCache.forEach(r => {
+          const sn = snapOf(r);
+          sn.lo = 1;
+          r.dataset.snapshot = JSON.stringify(sn);
+        });
+        lvAnchor = { job, lv, rem: lv >= LV_CAP ? 0 : rem };
+        updateTotal();
+        updateUI(false);
+        saveSession();
+      };
+      $("btnLvClear").onclick = () => {
+        lvAnchor = null;
+        lvNow = null;
+        updateTotal();
+        updateUI(false);
+        saveSession();
+      };
+
       // 通帳ラジオボタン切り替え時: 通帳あり行の上限を新しい上限へ差し替え、
       // 通帳行/溢れ行の振り分けを時系列で再計算する（超過分は切り捨てず溢れ行へ）
       root.querySelectorAll('input[name="pb"]').forEach(radio => {
@@ -1942,6 +2179,14 @@ v1.1.7
   .btn-warning{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px}
   .btn-teal{background:#00bcd4;color:#fff;border:none;border-radius:4px}
 
+  /* ── 強敵・レベル推移 ────────────────────────────────────────────── */
+  .lv-panel{background:#f8f9fc;border-radius:6px;padding:4px 8px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;font-size:11px}
+  .lv-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .lv-num{width:44px}
+  .lv-rem{width:84px}
+  .lv-btn{padding:2px 8px;font-size:11px;cursor:pointer}
+  .lv-info{font-weight:bold;color:#06c}
+
   /* ── 履歴コピー＋想定玉給 ────────────────────────────────────────── */
   .row-copy-reward{display:flex;gap:6px;margin-bottom:6px;align-items:center}
   .btn-copy{flex:3;white-space:nowrap;background:#008888;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:4px 8px;font-size:12px}
@@ -2053,6 +2298,8 @@ v1.1.7
   body.dark-mode .text-red{color:#ff8888}
   body.dark-mode .text-orange{color:#ffaa66}
 
+  body.dark-mode .lv-panel{background:#2a2f45}
+  body.dark-mode .lv-info{color:#5a9eff}
   body.dark-mode .passbook-area{background:#1e2a44}
   body.dark-mode .passbook-buttons button{background:#1a73e8}
 
