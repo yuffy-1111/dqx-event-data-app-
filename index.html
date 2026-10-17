@@ -629,8 +629,8 @@
         });
 
         // ========== メンテナンスモード ==========
-        const START_DATE = new Date('2026-05-21T12:30:00');
-        const END_DATE   = new Date('2026-05-21T16:00:00');
+        const START_DATE = new Date('2026-10-17T11:30:00');
+        const END_DATE   = new Date('2026-10-17T18:00:00');
         const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
         const skipMaintenance  = localStorage.getItem('dqx_dev_mode') === 'true';
 
@@ -638,7 +638,7 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const overlay = document.createElement('div');
                 overlay.className = 'maintenance-overlay';
-                overlay.innerHTML = '<div class="maintenance-text">メンテナンス中<br>12:30〜16:00</div>';
+                overlay.innerHTML = '<div class="maintenance-text">メンテナンス中<br>11:30〜18:00</div>';
                 document.body.appendChild(overlay);
             });
         }
