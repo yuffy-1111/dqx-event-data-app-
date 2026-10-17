@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.10.0 ==========
+// ========== 傭兵用多機能ツール ver2.11.0 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -16,6 +16,11 @@
 //            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
 //            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
 
+// [CHANGE]   (ver2.11.0) 通帳の「1Lv分引出」を撤廃し「リセット」(全額引出)のみに統一。Lv143に到達する分を超える額は
+//            引き出さず通帳に残す（キャップ適用後の額を引出行の要求額(req)として記録。Lv/次まで未入力時はキャップなし）。
+// [UX]       (ver2.11.0) 強敵プルダウンの幅を約1.3倍に拡張（「自動+15%」表記が収まるように）。
+// [FEATURE]  (ver2.11.0) 履歴の条件編集に「手前の履歴も含む」を追加。チェック時は、変更した項目のみを
+//            編集行以前の全グループへ適用し、通帳・溢れ・強敵率を時系列で再計算する。
 // [FIX]      (ver2.10.0) 「今は手を出さない方が良さそうだ」(自Lv-敵Lv≦-25)の強敵ボーナスは +20%（+25%は誤り）。+25%の選択肢を廃止。
 // [UX]       (ver2.10.0) 職の表示名を短縮（値は正式名のまま）。「次Lvまで」の小ラベル追加。入力は桁数制限(Lv3桁/次まで7桁)し欄幅を圧縮。
 // [FIX]      (ver2.9.0) 履歴削除でレベルの経験値が戻らない問題を修正。入力欄の書き換え時は「入力値 − 既存履歴の獲得分」を
@@ -187,6 +192,15 @@
     if (d >= -4)  return 10;
     if (d >= -9)  return 15;
     return 20;           // -10以下（かなり強そうだ／今は手を出さない方が…）はいずれも +20%
+  }
+
+  // Lv143(上限)に到達するまでに必要な残り経験値。「次まで」未入力(rem=null)や状態なしは上限なし(Infinity)
+  function lvCapNeed(st) {
+    if (!st || st.rem == null) return Infinity;
+    if (st.lv >= LV_CAP) return 0;
+    let need = st.rem;
+    for (let l = st.lv + 1; l < LV_CAP; l++) need += lvNeed(st.job, l);
+    return Math.max(0, need);
   }
 
   const CALL_LABELS = ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
@@ -535,10 +549,14 @@
     // 引出行は要求額(dataset.req)を保持し、実額(dataset.val)は都度 min(req, その時点の残高) で
     // 決める。引出後に元の通帳行を下方修正しても赤字が後続に持ち越されず、
     // 元の値に戻せば引出も要求額に戻る。戻り値は現在の通帳残高。
-    function applyWithdraw(r, balance) {
+    // cap: Lv143到達までに必要な経験値（これを超える分は引き出さず通帳に残す）。
+    //      省略時は recomputePassbookFlow が保存した dataset.wcap を使う（無ければ上限なし）。
+    function applyWithdraw(r, balance, cap) {
       const req = parseFloat(r.dataset.req);
       const requested = isNaN(req) ? (parseFloat(r.dataset.val) || 0) : req;
-      const eff = Math.min(requested, balance);
+      const c = cap !== undefined ? cap : parseFloat(r.dataset.wcap);
+      const capV = Number.isFinite(c) ? c : Infinity;
+      const eff = Math.min(requested, balance, capV);
       if (parseFloat(r.dataset.val) !== eff) {
         r.dataset.val          = eff;
         r.dataset.rawValCapped = eff;
@@ -731,7 +749,9 @@
         while (i < rowCache.length) {
           const r = rowCache[i];
           if (r.dataset.type === "withdraw") {
-            balance = applyWithdraw(r, balance);
+            const wcap = st ? lvCapNeed(st) : Infinity;
+            if (Number.isFinite(wcap)) r.dataset.wcap = String(wcap); else delete r.dataset.wcap;
+            balance = applyWithdraw(r, balance, wcap);
             if (st) lvAdvance(st, parseFloat(r.dataset.val) || 0);   // 引出分はキャラの経験値になる（全履歴が対象＝削除で巻き戻る）
             i++;
           } else if (!isBattleRow(r)) {
@@ -775,6 +795,34 @@
         r.dataset.snapshot  = json;
         r.dataset.monsterId = nextSnapshot.ms;
         r.dataset.dirty     = "1";
+      });
+      updateTotal();
+      saveSession();
+    }
+
+    // 編集行を含め、それ以前（古い側）の全戦闘グループへ「変更した項目のみ」を適用する。
+    // 編集行自身は編集内容そのもの(nextSnapshot)を適用。通帳・溢れ・強敵率の再計算は連動再計算に任せる。
+    function applyGroupSnapshotUpTo(row, nextSnapshot, changes) {
+      const editedGroup = getGroupOf(row);
+      const lastIdx = rowCache.indexOf(editedGroup[editedGroup.length - 1]);
+      const seen = new Set();
+      const groups = [];
+      rowCache.slice(0, lastIdx + 1).forEach((r) => {
+        if (!isBattleRow(r)) return;
+        const g = getGroupOf(r);
+        if (seen.has(g[0])) return;
+        seen.add(g[0]);
+        groups.push(g);
+      });
+      groups.forEach((g) => {
+        const isEdited = g[0] === editedGroup[0];
+        const next = isEdited ? nextSnapshot : { ...readRowSnapshot(g[0]), ...changes };
+        const json = JSON.stringify(next);
+        g.forEach((r) => {
+          r.dataset.snapshot  = json;
+          r.dataset.monsterId = next.ms;
+          r.dataset.dirty     = "1";
+        });
       });
       updateTotal();
       saveSession();
@@ -885,6 +933,17 @@
       });
       grid.appendChild(pbWrap);
 
+      const prevWrap = document.createElement("label");
+      prevWrap.className = "snapshot-editor-check";
+      const prevBox = document.createElement("input");
+      prevBox.type = "checkbox";
+      prevBox.id = `snapshot-${row.dataset.bid}-prev`;
+      const prevTxt = document.createElement("span");
+      prevTxt.textContent = "手前の履歴も含む（変更した項目のみ適用）";
+      prevWrap.appendChild(prevBox);
+      prevWrap.appendChild(prevTxt);
+      grid.appendChild(prevWrap);
+
       const actions = document.createElement("div");
       actions.className = "snapshot-editor-actions";
 
@@ -901,7 +960,16 @@
         const ms = monsterSel.value;
 
         const nextSnapshot = { ...snap, fd, tr, ag, em, elixir, pb, ms, sb: sbSelEl.value };
-        applyGroupSnapshot(row, nextSnapshot);
+        if (prevBox.checked) {
+          // 変更した項目だけを抽出し、編集行以前の全グループへ適用する
+          const changes = {};
+          ["fd", "tr", "ag", "em", "elixir", "pb", "ms", "sb"].forEach((k) => {
+            if (String(nextSnapshot[k]) !== String(snap[k] ?? (k === "sb" ? "20" : snap[k]))) changes[k] = nextSnapshot[k];
+          });
+          applyGroupSnapshotUpTo(row, nextSnapshot, changes);
+        } else {
+          applyGroupSnapshot(row, nextSnapshot);
+        }
         editor.remove();
       };
 
@@ -1568,7 +1636,6 @@ ${getStyles()}
     </div>
     <div class="passbook-buttons">
       <button id="btnPassbookReset">リセット</button>
-      <button id="btnPassbookWithdraw">1Lv分引出</button>
     </div>
   </div>
 
@@ -1674,18 +1741,16 @@ ${getStyles()}
       $("btnPassbookReset").onclick = () => {
         const currentBalance = syncPassbook();
         if (currentBalance <= 0) return;
+        // Lv143に到達する分を超える額は引き出さず通帳に残す（Lv/次まで未入力ならキャップなし）
+        const cap = lvCapNeed(lvNow);
+        if (cap <= 0) {
+          window.dqxShowToast?.("すでにLv143のため引き出せません", { duration: 3000 });
+          return;
+        }
+        const amount = Math.min(currentBalance, cap);
         const elapsed = timerHandle ? (Date.now() - startTime) / 1000 : pauseSec;
         // bid は "WD" 固定（数値bidだと同bidの戦闘行と呼び数連動グループに混ざるため）
-        addRow("WD", 0, currentBalance, "withdraw", elapsed, null, false, currentBalance, null);
-        saveSession();
-      };
-
-      $("btnPassbookWithdraw").onclick = () => {
-        const balance = syncPassbook();
-        if (balance <= 0) return;
-        const withdrawAmount = Math.min(EXP_PER_LV, balance);
-        const elapsed = timerHandle ? (Date.now() - startTime) / 1000 : pauseSec;
-        addRow("WD", 0, withdrawAmount, "withdraw", elapsed, null, false, withdrawAmount, null);
+        addRow("WD", 0, amount, "withdraw", elapsed, null, false, amount, null);
         saveSession();
       };
 
@@ -1985,6 +2050,13 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
+v2.11.0 ...検証中
+  - 通帳の「1Lv分引出」を撤廃し、「リセット」(全額引出)のみに統一
+    - Lv143に到達する分を超える額は引き出さず、通帳に残す
+    - すでにLv143のときは引出不可。Lv/次まで未入力のときはキャップなし
+  - 強敵ボーナスのプルダウン幅を拡張
+  - 履歴の条件編集に「手前の履歴も含む」を追加（変更した項目のみ、編集行以前の全行に適用）
+
 v2.6.0 ...最終更新日 2026/10/01
   - 履歴行の条件編集（モンスター・料理・修練・エンゼル・皇帝・エリクサー・通帳）を追加。履歴の経験値部分を選択して編集可能
     - 変更内容に応じて通帳・溢れ・エンゼル・通常行の再構築を行える
@@ -2255,7 +2327,7 @@ v1.1.7
   /* ── 強敵・レベル推移（1行・入力欄が現在値の表示を兼ねる） ───────────── */
   .lv-panel{background:#f8f9fc;border-radius:6px;padding:3px 6px;margin-bottom:8px;display:flex;gap:4px;align-items:center;flex-wrap:nowrap;font-size:11px}
   .lv-panel select,.lv-panel input{min-width:0;font-size:11px;padding:2px 2px;box-sizing:border-box}
-  .lv-sb{flex:0 0 auto;width:62px}
+  .lv-sb{flex:0 0 auto;width:80px}
   .lv-job{flex:1 1 0;max-width:84px}
   .lv-num{flex:0 0 32px;width:32px;text-align:right}
   .lv-rem{flex:0 0 56px;width:56px;text-align:right}
