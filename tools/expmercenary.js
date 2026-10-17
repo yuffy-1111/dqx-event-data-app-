@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.9.0 ==========
+// ========== 傭兵用多機能ツール ver2.10.0 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -16,13 +16,15 @@
 //            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
 //            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
 
+// [FIX]      (ver2.10.0) 「今は手を出さない方が良さそうだ」(自Lv-敵Lv≦-25)の強敵ボーナスは +20%（+25%は誤り）。+25%の選択肢を廃止。
+// [UX]       (ver2.10.0) 職の表示名を短縮（値は正式名のまま）。「次Lvまで」の小ラベル追加。入力は桁数制限(Lv3桁/次まで7桁)し欄幅を圧縮。
 // [FIX]      (ver2.9.0) 履歴削除でレベルの経験値が戻らない問題を修正。入力欄の書き換え時は「入力値 − 既存履歴の獲得分」を
 //            逆算して起点を決め直し、全履歴をレベル加算の対象のままにする（各行の強敵率だけは固定して過去値を保持）。
 // [UX]       (ver2.9.0) 強敵/職/Lv/次までの行をタイマー行の上へ移動。Lvに左右矢印を追加。「次まで」は任意入力
 //            （空ならレベルは手動固定で履歴連動なし。Lv別の強敵率だけ反映）。バフ欄は2行構成に圧縮。
 // [UX]       (ver2.8.0) レベル入力欄(職名/Lv/次まで)をそのまま現在値の表示にし、欄の数字を書き換えるとその時点から再起点化。
 //            欄を空にすると連動解除。加算直後に即時反映（従来はロック解除後）。職は職名プルダウン(遊び人は必要経験値×0.75を切上げ)。
-// [FEATURE]  強敵ボーナス率のプルダウン(自動/なし/+10/+15/+20/+25)と、職Lv・次までの経験値の入力による
+// [FEATURE]  強敵ボーナス率のプルダウン(自動/なし/+10/+15/+20)と、職Lv・次までの経験値の入力による
 //            レベル自動推移を追加。履歴を時系列でたどって獲得経験値からレベルアップを判定し、
 //            自Lv-敵Lv の差で強敵ボーナス率を自動決定する。対象はデュラハーンのみ(敵Lv150。
 //            140→141で「かなり強そう+20%」→「強そう+15%」の境目から確定)。（ver2.7.0）
@@ -135,8 +137,14 @@
                  "まもの使い", "どうぐ使い", "踊り子", "占い師", "天地雷鳴士", "デスマスター", "魔剣士", "海賊", "遊び人"],
     "マスター": ["ガーディアン", "竜術士", "隠者", "ストームカイザー"],
   };
+  // 表示名の短縮（欄幅の都合）。value は正式名のまま
+  const LV_JOB_LABEL = {
+    "バトルマスター": "バトマス", "パラディン": "パラ", "レンジャー": "レン", "スーパースター": "スパスタ",
+    "まもの使い": "まも", "どうぐ使い": "どう", "天地雷鳴士": "天地", "デスマスター": "デス",
+    "ガーディアン": "ガデ", "ストームカイザー": "スト",
+  };
   const LV_JOB_OPTIONS_HTML = Object.keys(LV_JOBS).map(g =>
-    `<optgroup label="${g}">${LV_JOBS[g].map(j => `<option value="${j}">${j}</option>`).join("")}</optgroup>`
+    `<optgroup label="${g}">${LV_JOBS[g].map(j => `<option value="${j}">${LV_JOB_LABEL[j] || j}</option>`).join("")}</optgroup>`
   ).join("");
   function jobClass(job) {
     if (LV_JOBS["基本職"].includes(job) || job === "base") return "base";
@@ -172,14 +180,13 @@
     p = Math.max(0, p - g);
     return { job, lv, rem: lv >= LV_CAP ? 0 : Math.max(0, lvNeed(job, lv) - p) };
   }
-  // 自Lv-敵Lv → 強敵ボーナス(%)。ゲーム内「しらべる」の表（格下なし/同格+10/強そう+15/かなり強そう+20/手を出さない+25）
+  // 自Lv-敵Lv → 強敵ボーナス(%)。ゲーム内「しらべる」の表（格下なし/同格+10/強そう+15/かなり強そう+20/手を出さない+20）
   function strongRate(selfLv, enemyLv) {
     const d = selfLv - enemyLv;
     if (d >= 3)   return 0;
     if (d >= -4)  return 10;
     if (d >= -9)  return 15;
-    if (d >= -24) return 20;
-    return 25;
+    return 20;           // -10以下（かなり強そうだ／今は手を出さない方が…）はいずれも +20%
   }
 
   const CALL_LABELS = ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
@@ -630,7 +637,7 @@
       const ms  = $("ms");
       const elv = parseInt(ms?.options[ms.selectedIndex]?.dataset.elv) || 0;
       const autoOpt = sbSel.querySelector('option[value="auto"]');
-      if (autoOpt) autoOpt.textContent = (lvNow && elv) ? `自動(+${strongRate(lvNow.lv, elv)}%)` : "自動";
+      if (autoOpt) autoOpt.textContent = (lvNow && elv) ? `自動+${strongRate(lvNow.lv, elv)}%` : "自動";
       if (lvNow) {
         try {
           localStorage.setItem(STORAGE_KEYS.LV, JSON.stringify({ job: lvNow.job, lv: lvNow.lv, rem: lvNow.rem == null ? null : Math.round(lvNow.rem) }));
@@ -809,7 +816,7 @@
       sbWrap.innerHTML = '<span>強敵</span>';
       const sbSelEl = document.createElement("select");
       sbSelEl.className = "snapshot-editor-select";
-      [["auto", "自動(Lv連動)"], ["0", "なし"], ["10", "+10%"], ["15", "+15%"], ["20", "+20%"], ["25", "+25%"]].forEach(([v, t]) => {
+      [["auto", "自動(Lv連動)"], ["0", "なし"], ["10", "+10%"], ["15", "+15%"], ["20", "+20%"]].forEach(([v, t]) => {
         const o = document.createElement("option");
         o.value = v; o.textContent = t;
         if (v === String(snap.sb ?? "20")) o.selected = true;
@@ -1484,13 +1491,13 @@ ${getStyles()}
       <option value="10">+10%</option>
       <option value="15">+15%</option>
       <option value="20">+20%</option>
-      <option value="25">+25%</option>
     </select>
     <select id="lvJob" class="passbook-select lv-job" title="職（必要経験値の計算用）">${LV_JOB_OPTIONS_HTML}</select>
     <button id="btnLvDown" type="button" class="call-count-arrow lv-arrow" aria-label="Lvを下げる"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <input id="lvIn" type="number" min="1" max="143" inputmode="numeric" class="lv-num" placeholder="Lv" title="現在のレベル（書き換えるとその時点から再計算。Lvと次までを空にすると連動解除）">
     <button id="btnLvUp" type="button" class="call-count-arrow lv-arrow" aria-label="Lvを上げる"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M9 5 L16 12 L9 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <input id="lvRem" type="number" min="0" inputmode="numeric" class="lv-rem" placeholder="次まで(任意)" title="次のレベルまでの経験値（ゲーム内表示）。入力するとレベルが履歴と連動して上がります。空ならLv固定">
+    <span class="lv-rem-label">次Lv<br>まで</span>
+    <input id="lvRem" type="number" min="0" inputmode="numeric" class="lv-rem" placeholder="任意" title="次のレベルまでの経験値（ゲーム内表示）。入力するとレベルが履歴と連動して上がります。空ならLv固定">
   </div>
 
   <div id="timer-row" class="timer-row">
@@ -1913,6 +1920,13 @@ ${getStyles()}
       };
       $("btnLvDown").onclick = () => stepLv(-1);
       $("btnLvUp").onclick   = () => stepLv(+1);
+      // 桁数制限（type=number は maxlength が効かないため入力時に切り詰める）: Lv=3桁 / 次まで=7桁
+      [["lvIn", 3], ["lvRem", 7]].forEach(([id, n]) => {
+        $(id).oninput = () => {
+          const v = $(id).value;
+          if (v.length > n) $(id).value = v.slice(0, n);
+        };
+      });
       ["lvJob", "lvIn", "lvRem"].forEach(id => {
         $(id).onchange = applyLvInput;
         $(id).onkeydown = (ev) => { if (ev.key === "Enter") ev.target.blur(); };
@@ -2241,10 +2255,11 @@ v1.1.7
   /* ── 強敵・レベル推移（1行・入力欄が現在値の表示を兼ねる） ───────────── */
   .lv-panel{background:#f8f9fc;border-radius:6px;padding:3px 6px;margin-bottom:8px;display:flex;gap:4px;align-items:center;flex-wrap:nowrap;font-size:11px}
   .lv-panel select,.lv-panel input{min-width:0;font-size:11px;padding:2px 2px;box-sizing:border-box}
-  .lv-sb{flex:0 0 auto;width:68px}
-  .lv-job{flex:1 1 0;max-width:100px}
-  .lv-num{flex:0 0 38px;width:38px;text-align:right}
-  .lv-rem{flex:1 1 0;width:70px;text-align:right}
+  .lv-sb{flex:0 0 auto;width:62px}
+  .lv-job{flex:1 1 0;max-width:84px}
+  .lv-num{flex:0 0 32px;width:32px;text-align:right}
+  .lv-rem{flex:0 0 56px;width:56px;text-align:right}
+  .lv-rem-label{font-size:8px;line-height:1.05;color:#666;text-align:right;white-space:nowrap;margin-left:auto}
   .lv-arrow{flex:0 0 24px;height:24px}
   .lv-arrow .call-count-arrow-icon{width:16px;height:16px}
   .lv-err{outline:2px solid #e55;outline-offset:-1px}
@@ -2361,6 +2376,7 @@ v1.1.7
   body.dark-mode .text-orange{color:#ffaa66}
 
   body.dark-mode .lv-panel{background:#2a2f45}
+  body.dark-mode .lv-rem-label{color:#aaa}
   body.dark-mode .passbook-area{background:#1e2a44}
   body.dark-mode .passbook-buttons button{background:#1a73e8}
 
