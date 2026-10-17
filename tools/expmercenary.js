@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.8.0 ==========
+// ========== 傭兵用多機能ツール ver2.9.0 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -16,6 +16,10 @@
 //            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
 //            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
 
+// [FIX]      (ver2.9.0) 履歴削除でレベルの経験値が戻らない問題を修正。入力欄の書き換え時は「入力値 − 既存履歴の獲得分」を
+//            逆算して起点を決め直し、全履歴をレベル加算の対象のままにする（各行の強敵率だけは固定して過去値を保持）。
+// [UX]       (ver2.9.0) 強敵/職/Lv/次までの行をタイマー行の上へ移動。Lvに左右矢印を追加。「次まで」は任意入力
+//            （空ならレベルは手動固定で履歴連動なし。Lv別の強敵率だけ反映）。バフ欄は2行構成に圧縮。
 // [UX]       (ver2.8.0) レベル入力欄(職名/Lv/次まで)をそのまま現在値の表示にし、欄の数字を書き換えるとその時点から再起点化。
 //            欄を空にすると連動解除。加算直後に即時反映（従来はロック解除後）。職は職名プルダウン(遊び人は必要経験値×0.75を切上げ)。
 // [FEATURE]  強敵ボーナス率のプルダウン(自動/なし/+10/+15/+20/+25)と、職Lv・次までの経験値の入力による
@@ -147,6 +151,7 @@
   }
   // 獲得経験値を加算してレベルを進める（st = { job, lv, rem(次までの残り) }。破壊的）
   function lvAdvance(st, gain) {
+    if (st.rem == null) return st;   // 「次まで」未入力＝手動固定（経験値では連動しない）
     st.rem -= gain;
     while (st.lv < LV_CAP && st.rem <= 0) {
       st.lv++;
@@ -154,6 +159,18 @@
     }
     if (st.lv >= LV_CAP) st.rem = Math.max(0, st.rem);
     return st;
+  }
+  // 逆算: 状態(lv, rem)が「獲得gain」を得た後のものとして、その前の状態を返す（lvAdvanceの逆）
+  function lvUnwind(job, lv, rem, gain) {
+    let p = lv >= LV_CAP ? 0 : Math.max(0, lvNeed(job, lv) - rem);   // 現レベル内で獲得済みの量
+    let g = gain;
+    while (g > p && lv > 1) {
+      g -= p;
+      lv--;
+      p = lvNeed(job, lv);                                            // 1つ前のレベルは満タンでレベルアップ
+    }
+    p = Math.max(0, p - g);
+    return { job, lv, rem: lv >= LV_CAP ? 0 : Math.max(0, lvNeed(job, lv) - p) };
   }
   // 自Lv-敵Lv → 強敵ボーナス(%)。ゲーム内「しらべる」の表（格下なし/同格+10/強そう+15/かなり強そう+20/手を出さない+25）
   function strongRate(selfLv, enemyLv) {
@@ -607,7 +624,7 @@
       const active = document.activeElement;
       if (lvNow) {
         if (active !== inLv)   inLv.value  = lvNow.lv;
-        if (active !== inRem)  inRem.value = Math.max(0, Math.round(lvNow.rem));
+        if (active !== inRem)  inRem.value = lvNow.rem == null ? "" : Math.max(0, Math.round(lvNow.rem));
         if (active !== jobSel && jobSel.value !== lvNow.job) jobSel.value = lvNow.job;
       }
       const ms  = $("ms");
@@ -616,7 +633,7 @@
       if (autoOpt) autoOpt.textContent = (lvNow && elv) ? `自動(+${strongRate(lvNow.lv, elv)}%)` : "自動";
       if (lvNow) {
         try {
-          localStorage.setItem(STORAGE_KEYS.LV, JSON.stringify({ job: lvNow.job, lv: lvNow.lv, rem: Math.round(lvNow.rem) }));
+          localStorage.setItem(STORAGE_KEYS.LV, JSON.stringify({ job: lvNow.job, lv: lvNow.lv, rem: lvNow.rem == null ? null : Math.round(lvNow.rem) }));
         } catch (e) {}
       }
     }
@@ -700,7 +717,7 @@
       flowBusy = true;
       let balance = 0;
       let structureChanged = false;
-      // レベル推移: 起点（設定時点＝既存行を含む状態）から、設定後の行だけを時系列で加算する
+      // レベル推移: 起点（全履歴より前の状態）から、履歴を時系列で加算して現在のLvを求める
       let st = lvAnchor ? { job: lvAnchor.job, lv: lvAnchor.lv, rem: lvAnchor.rem } : null;
       try {
         let i = 0;
@@ -708,7 +725,7 @@
           const r = rowCache[i];
           if (r.dataset.type === "withdraw") {
             balance = applyWithdraw(r, balance);
-            if (st && !isLvOld(r)) lvAdvance(st, parseFloat(r.dataset.val) || 0);   // 引出分はキャラの経験値になる
+            if (st) lvAdvance(st, parseFloat(r.dataset.val) || 0);   // 引出分はキャラの経験値になる（全履歴が対象＝削除で巻き戻る）
             i++;
           } else if (!isBattleRow(r)) {
             i++;
@@ -716,12 +733,12 @@
             let j = i + 1;
             while (j < rowCache.length && isBattleRow(rowCache[j]) && rowCache[j].dataset.main !== "true") j++;
             const grp = rowCache.slice(i, j);
-            const tracked = !!st && !isLvOld(grp[0]);
-            if (tracked) stampLv(grp, st.lv);            // この戦闘時点の自Lvを行に記録
+            // 強敵率は行ごとに固定: 起点の再設定前から存在した行（lo）は過去の値を保持し、以降の行だけ時点のLvを記録する
+            if (st && !isLvOld(grp[0])) stampLv(grp, st.lv);
             const res = allocateGroup(grp, i, balance);
             balance += res.used;
             if (res.changed) structureChanged = true;
-            if (tracked) {
+            if (st) {
               // 通常・エンゼル行のみ加算（通帳への預入・溢れは加算しない）
               let gain = 0;
               rowCache.slice(i, i + res.n).forEach(x => {
@@ -1460,34 +1477,6 @@ ${getStyles()}
     </div>
   </div>
 
-  <div id="timer-row" class="timer-row">
-    <div class="buff-area">
-      <div class="buff-row-1">
-        <button id="btnBuffReset" class="btn-oc">OC</button>
-        <span class="passbook-label">通帳:</span>
-        <div class="passbook-radio-group">
-          <label><input name="pb" type="radio" value="0" checked />無</label>
-          <label><input name="pb" type="radio" value="5000000" />1</label>
-          <label><input name="pb" type="radio" value="10000000" />2</label>
-        </div>
-      </div>
-      <div class="buff-row-2">
-        <label><input id="fd" type="checkbox" checked />料理</label>
-        <label><input id="tr" type="checkbox" />修練</label>
-        <label><input id="ag" type="checkbox" />エンゼル</label>
-        <label><input id="em" type="checkbox" />皇帝</label>
-      </div>
-      <div class="buff-row-3">
-        <div class="elixir-radio-row">
-          <label><input name="e_exp" type="radio" value="none" />無</label>
-          <label><input name="e_exp" type="radio" value="genki" checked />元気</label>
-          <label><input name="e_exp" type="radio" value="bakushin" />爆伸</label>
-        </div>
-      </div>
-    </div>
-    <button id="btnTimerStop" class="btn-timer-stop">タイマー<br>開始</button>
-  </div>
-
   <div class="lv-panel">
     <select id="sb" class="passbook-select lv-sb" title="強敵ボーナス率（デュラハーンのみ適用）">
       <option value="auto" selected>自動</option>
@@ -1498,8 +1487,36 @@ ${getStyles()}
       <option value="25">+25%</option>
     </select>
     <select id="lvJob" class="passbook-select lv-job" title="職（必要経験値の計算用）">${LV_JOB_OPTIONS_HTML}</select>
-    <input id="lvIn" type="number" min="1" max="143" inputmode="numeric" class="lv-num" placeholder="Lv" title="現在のレベル（書き換えるとその時点から再計算。空にすると連動解除）">
-    <input id="lvRem" type="number" min="0" inputmode="numeric" class="lv-rem" placeholder="次まで" title="次のレベルまでの経験値（ゲーム内表示）">
+    <button id="btnLvDown" type="button" class="call-count-arrow lv-arrow" aria-label="Lvを下げる"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <input id="lvIn" type="number" min="1" max="143" inputmode="numeric" class="lv-num" placeholder="Lv" title="現在のレベル（書き換えるとその時点から再計算。Lvと次までを空にすると連動解除）">
+    <button id="btnLvUp" type="button" class="call-count-arrow lv-arrow" aria-label="Lvを上げる"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M9 5 L16 12 L9 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <input id="lvRem" type="number" min="0" inputmode="numeric" class="lv-rem" placeholder="次まで(任意)" title="次のレベルまでの経験値（ゲーム内表示）。入力するとレベルが履歴と連動して上がります。空ならLv固定">
+  </div>
+
+  <div id="timer-row" class="timer-row">
+    <div class="buff-area">
+      <div class="buff-row-1">
+        <button id="btnBuffReset" class="btn-oc">OC</button>
+        <label><input id="fd" type="checkbox" checked />料理</label>
+        <label><input id="tr" type="checkbox" />修練</label>
+        <label><input id="ag" type="checkbox" />エンゼル</label>
+        <label><input id="em" type="checkbox" />皇帝</label>
+      </div>
+      <div class="buff-row-2">
+        <div class="elixir-radio-row">
+          <label><input name="e_exp" type="radio" value="none" />無</label>
+          <label><input name="e_exp" type="radio" value="genki" checked />元気</label>
+          <label><input name="e_exp" type="radio" value="bakushin" />爆伸</label>
+        </div>
+        <span class="passbook-label">通帳:</span>
+        <div class="passbook-radio-group">
+          <label><input name="pb" type="radio" value="0" checked />無</label>
+          <label><input name="pb" type="radio" value="5000000" />1</label>
+          <label><input name="pb" type="radio" value="10000000" />2</label>
+        </div>
+      </div>
+    </div>
+    <button id="btnTimerStop" class="btn-timer-stop">タイマー<br>開始</button>
   </div>
 
   <div class="row-total-calc">
@@ -1836,14 +1853,17 @@ ${getStyles()}
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.LV) || "null");
         if (saved && saved.job && saved.lv >= 1 && saved.lv <= LV_CAP) {
-          lvAnchor = { job: saved.job, lv: saved.lv, rem: saved.rem >= 0 ? saved.rem : 0 };
+          lvAnchor = { job: saved.job, lv: saved.lv, rem: saved.rem == null ? null : Math.max(0, saved.rem) };
           lvNow    = { ...lvAnchor };
         }
       } catch (e) {}
       $("sb").onchange = () => updateUI(false);
 
-      // 入力欄の書き換え = 「この時点の状態はこれ」。それまでの履歴は入力値に含まれるものとして再起点化する。
-      // Lv・次までの両方を空にすると連動解除。
+      // 入力欄の書き換え = 「この時点の状態はこれ」。
+      //   Lv+次まで : 既存履歴の獲得分を逆算して起点を決め直す（以後は履歴の増減に連動。削除で巻き戻る）
+      //   Lvのみ    : Lv固定（経験値では連動しない。強敵率だけLvから決まる）
+      //   両方空    : 連動解除
+      // いずれも既存行の強敵率は書き換え前の値を保持する（過去の値が変わらない）。
       const applyLvInput = () => {
         const job = $("lvJob").value;
         const lvStr = $("lvIn").value.trim(), remStr = $("lvRem").value.trim();
@@ -1854,20 +1874,45 @@ ${getStyles()}
           updateTotal(); updateUI(false); saveSession();
           return;
         }
+        const hasRem = remStr !== "";
         const lv = parseInt(lvStr), rem = parseInt(remStr);
         const lvBad  = !(lv >= 1 && lv <= LV_CAP);
-        const remBad = !(rem >= 0) || (!lvBad && lv < LV_CAP && rem > lvNeed(job, lv));
-        $("lvIn").classList.toggle("lv-err",  lvStr  !== "" && lvBad);
-        $("lvRem").classList.toggle("lv-err", remStr !== "" && remBad);
-        if (lvBad || remBad) return;   // 片方未入力・範囲外は何もしない（赤枠で示す）
+        const remBad = hasRem && (!(rem >= 0) || (!lvBad && lv < LV_CAP && rem > lvNeed(job, lv)));
+        $("lvIn").classList.toggle("lv-err",  lvBad && (lvStr !== "" || hasRem));
+        $("lvRem").classList.toggle("lv-err", remBad);
+        if (lvBad || remBad) return;   // 範囲外・Lv未入力は何もしない（赤枠で示す）
         rowCache.forEach(r => {
           const sn = snapOf(r);
           sn.lo = 1;
           r.dataset.snapshot = JSON.stringify(sn);
         });
-        lvAnchor = { job, lv, rem: lv >= LV_CAP ? 0 : rem };
+        if (!hasRem) {
+          lvAnchor = { job, lv, rem: null };
+        } else {
+          let gain = 0;
+          rowCache.forEach(r => {
+            const t = r.dataset.type;
+            if (t === "normal" || t === "angel" || t === "withdraw") gain += parseFloat(r.dataset.val) || 0;
+          });
+          lvAnchor = lvUnwind(job, lv, lv >= LV_CAP ? 0 : rem, gain);
+        }
         updateTotal(); updateUI(false); saveSession();
       };
+      // 左右矢印: Lvを±1（空なら現在の上限Lvから開始）。次まで入力済みなら新Lvの上限内に収める
+      const stepLv = (d) => {
+        const cur = parseInt($("lvIn").value);
+        const next = cur >= 1 ? Math.min(LV_CAP, Math.max(1, cur + d)) : LV_CAP;
+        $("lvIn").value = next;
+        const remEl = $("lvRem");
+        if (remEl.value.trim() !== "") {
+          const mx = lvNeed($("lvJob").value, next);
+          if (next >= LV_CAP) remEl.value = 0;
+          else if (parseInt(remEl.value) > mx) remEl.value = mx;
+        }
+        applyLvInput();
+      };
+      $("btnLvDown").onclick = () => stepLv(-1);
+      $("btnLvUp").onclick   = () => stepLv(+1);
       ["lvJob", "lvIn", "lvRem"].forEach(id => {
         $(id).onchange = applyLvInput;
         $(id).onkeydown = (ev) => { if (ev.key === "Enter") ev.target.blur(); };
@@ -2157,10 +2202,10 @@ v1.1.7
   /* ── タイマー行（バフ設定） ──────────────────────────────────────── */
   .timer-row{background:#f8f9fc;border-radius:6px;padding:6px 8px;margin-bottom:8px;display:flex;gap:8px;align-items:stretch}
   .buff-area{flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:4px;min-width:0}
-  .buff-row-1{display:flex;gap:10px;font-size:11px;justify-content:flex-end;align-items:center}
+  .buff-row-1{display:flex;gap:6px;font-size:11px;justify-content:flex-end;align-items:center}
   .passbook-label{font-size:11px;font-weight:bold;color:#333;margin:0}
-  .passbook-radio-group{display:flex;gap:12px;font-size:11px}
-  .buff-row-2{display:flex;align-items:center;gap:8px;font-size:11px;justify-content:flex-end;border-top:1px solid #ddd;padding-top:3px}
+  .passbook-radio-group{display:flex;gap:8px;font-size:11px}
+  .buff-row-2{display:flex;align-items:center;gap:6px;font-size:11px;justify-content:flex-end;border-top:1px solid #ddd;padding-top:3px}
   .buff-row-3{display:flex;gap:8px;font-size:11px;justify-content:flex-end}
   .elixir-radio-row{display:flex;gap:8px;font-size:11px}
   .btn-oc{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;padding:4px 8px;font-size:10px;line-height:1.2;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-right:auto}
@@ -2196,10 +2241,12 @@ v1.1.7
   /* ── 強敵・レベル推移（1行・入力欄が現在値の表示を兼ねる） ───────────── */
   .lv-panel{background:#f8f9fc;border-radius:6px;padding:3px 6px;margin-bottom:8px;display:flex;gap:4px;align-items:center;flex-wrap:nowrap;font-size:11px}
   .lv-panel select,.lv-panel input{min-width:0;font-size:11px;padding:2px 2px;box-sizing:border-box}
-  .lv-sb{flex:0 0 auto;width:74px}
-  .lv-job{flex:1 1 0;max-width:110px}
-  .lv-num{flex:0 0 40px;width:40px;text-align:right}
+  .lv-sb{flex:0 0 auto;width:68px}
+  .lv-job{flex:1 1 0;max-width:100px}
+  .lv-num{flex:0 0 38px;width:38px;text-align:right}
   .lv-rem{flex:1 1 0;width:70px;text-align:right}
+  .lv-arrow{flex:0 0 24px;height:24px}
+  .lv-arrow .call-count-arrow-icon{width:16px;height:16px}
   .lv-err{outline:2px solid #e55;outline-offset:-1px}
 
   /* ── 履歴コピー＋想定玉給 ────────────────────────────────────────── */
