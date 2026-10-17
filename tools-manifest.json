@@ -20,7 +20,7 @@
       "desc": "経験値計算<br>タイマー",
       "url": "./tools/expmercenary.js",
       "renderFn": "Expmercenary.render",
-      "ver": "2.10.0",
+      "ver": "2.11.0",
       "cache": true
     },
     {
