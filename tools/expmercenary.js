@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.11.0 ==========
+// ========== 傭兵用多機能ツール ver2.7.3 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -16,16 +16,23 @@
 //            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
 //            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
 
-// [CHANGE]   (ver2.11.0) 通帳の「1Lv分引出」を撤廃し「リセット」(全額引出)のみに統一。Lv143に到達する分を超える額は
+// [FIX]      (ver2.7.3) 経験値計算の浮動小数点誤差を修正。料理(+0.3)を含む倍率を小数で足していたため、数学的に整数ちょうどになる
+//            組み合わせで floor が1少なくなり、料理の+1補正が打ち消されてゲームより1少なくなっていた
+//            （例: ヘルガーディアン 料理+元気 10匹 599750→599751）。倍率を10倍整数で扱う整数演算に変更。
+
+// [CHANGE]   (ver2.7.2) 強敵ボーナスはデュラハーン +15% 固定に変更し、率のプルダウン(sb)を廃止。PTメンバーに141以上がいると
+//            「しらべる」のレベル差が変わり自分のLvだけでは率が決まらないため、職Lvからの自動判定は取りやめ。
+//            職/Lv/次までの入力は、レベル推移（通帳キャップ・次までの確認）用としてそのまま残す。
+// [CHANGE]   (ver2.7.0) 通帳の「1Lv分引出」を撤廃し「リセット」(全額引出)のみに統一。Lv143に到達する分を超える額は
 //            引き出さず通帳に残す（キャップ適用後の額を引出行の要求額(req)として記録。Lv/次まで未入力時はキャップなし）。
-// [UX]       (ver2.11.0) 強敵プルダウンの幅を約1.3倍に拡張（「自動+15%」表記が収まるように）。
-// [FEATURE]  (ver2.11.0) 履歴の条件編集に「手前の履歴も含む」を追加。チェック時は、変更した項目のみを
+// [UX]       (ver2.7.0) 強敵プルダウンの幅を約1.3倍に拡張（「自動+15%」表記が収まるように）。
+// [FEATURE]  (ver2.7.0) 履歴の条件編集に「手前の履歴も含む」を追加。チェック時は、変更した項目のみを
 //            編集行以前の全グループへ適用し、通帳・溢れ・強敵率を時系列で再計算する。
-// [FIX]      (ver2.10.0) 「今は手を出さない方が良さそうだ」(自Lv-敵Lv≦-25)の強敵ボーナスは +20%（+25%は誤り）。+25%の選択肢を廃止。
-// [UX]       (ver2.10.0) 職の表示名を短縮（値は正式名のまま）。「次Lvまで」の小ラベル追加。入力は桁数制限(Lv3桁/次まで7桁)し欄幅を圧縮。
-// [FIX]      (ver2.9.0) 履歴削除でレベルの経験値が戻らない問題を修正。入力欄の書き換え時は「入力値 − 既存履歴の獲得分」を
+// [FIX]      (ver2.7.0) 「今は手を出さない方が良さそうだ」(自Lv-敵Lv≦-25)の強敵ボーナスは +20%（+25%は誤り）。+25%の選択肢を廃止。
+// [UX]       (ver2.7.0) 職の表示名を短縮（値は正式名のまま）。「次Lvまで」の小ラベル追加。入力は桁数制限(Lv3桁/次まで7桁)し欄幅を圧縮。
+// [FIX]      (ver2.7.0) 履歴削除でレベルの経験値が戻らない問題を修正。入力欄の書き換え時は「入力値 − 既存履歴の獲得分」を
 //            逆算して起点を決め直し、全履歴をレベル加算の対象のままにする（各行の強敵率だけは固定して過去値を保持）。
-// [UX]       (ver2.9.0) 強敵/職/Lv/次までの行をタイマー行の上へ移動。Lvに左右矢印を追加。「次まで」は任意入力
+// [UX]       (ver2.7.0) 強敵/職/Lv/次までの行をタイマー行の上へ移動。Lvに左右矢印を追加。「次まで」は任意入力
 //            （空ならレベルは手動固定で履歴連動なし。Lv別の強敵率だけ反映）。バフ欄は2行構成に圧縮。
 // [UX]       (ver2.8.0) レベル入力欄(職名/Lv/次まで)をそのまま現在値の表示にし、欄の数字を書き換えるとその時点から再起点化。
 //            欄を空にすると連動解除。加算直後に即時反映（従来はロック解除後）。職は職名プルダウン(遊び人は必要経験値×0.75を切上げ)。
@@ -185,14 +192,9 @@
     p = Math.max(0, p - g);
     return { job, lv, rem: lv >= LV_CAP ? 0 : Math.max(0, lvNeed(job, lv) - p) };
   }
-  // 自Lv-敵Lv → 強敵ボーナス(%)。ゲーム内「しらべる」の表（格下なし/同格+10/強そう+15/かなり強そう+20/手を出さない+20）
-  function strongRate(selfLv, enemyLv) {
-    const d = selfLv - enemyLv;
-    if (d >= 3)   return 0;
-    if (d >= -4)  return 10;
-    if (d >= -9)  return 15;
-    return 20;           // -10以下（かなり強そうだ／今は手を出さない方が…）はいずれも +20%
-  }
+  // 強敵ボーナス率(%)。敵Lv(data-elv)を持つモンスター（現状デュラハーンのみ）に適用する固定値。
+  // 実測: 総獲得経験値がゲーム内の値と1の位まで一致（+20%固定だと端数戦闘で1匹あたり1,140ずれる）
+  const STRONG_BONUS_PCT = 15;
 
   // Lv143(上限)に到達するまでに必要な残り経験値。「次まで」未入力(rem=null)や状態なしは上限なし(Infinity)
   function lvCapNeed(st) {
@@ -341,6 +343,7 @@
     let flowBusy     = false;      // 連動再計算の再入防止
     let lvAnchor     = null;       // レベル推移の起点 { job, lv, rem }（「設定」時点＝それまでの履歴を含んだ状態）
     let lvNow        = null;       // 履歴をたどった現在のレベル状態 { job, lv, rem }（未設定ならnull）
+    let lvInputsPending = false;   // レベル入力の編集中は、他の再描画で空欄を上書きしない
 
     // DOM キャッシュ（render後に設定）
     let root = null;
@@ -358,15 +361,13 @@
 
     // ── 経験値計算 ───────────────────────────────────────────────────────
     function calcExp(callCount, partnerKey = "none", snap = null) {
-      let baseExp, bonusExp, fd, tr, ag, em, elixir, pbVal, elv, sbSel, lvForAuto;
+      let baseExp, bonusExp, fd, tr, ag, em, elixir, pbVal, elv;
 
       if (snap) {
         const msOption = root.querySelector(`#ms option[value="${snap.ms}"]`);
         baseExp  = parseInt(msOption?.dataset.base)  || 0;
         bonusExp = parseInt(msOption?.dataset.bonus) || 0;
         elv      = parseInt(msOption?.dataset.elv) || 0;
-        sbSel    = snap.sb ?? "20";                       // 旧データは従来の +20%
-        lvForAuto = snap.lv ?? null;
         ({ fd, tr, ag, em, elixir, pb: pbVal } = snap);
       } else {
         const sel = $("ms");
@@ -374,8 +375,6 @@
         baseExp  = parseInt(opt.dataset.base)  || 0;
         bonusExp = parseInt(opt.dataset.bonus) || 0;
         elv      = parseInt(opt.dataset.elv) || 0;
-        sbSel    = $("sb")?.value || "20";
-        lvForAuto = lvNow ? lvNow.lv : null;
         fd     = $("fd").checked;
         tr     = $("tr").checked;
         ag     = $("ag").checked;
@@ -384,22 +383,21 @@
         pbVal  = root.querySelector('input[name="pb"]:checked')?.value || "0";
       }
 
-      // 強敵ボーナス: 敵Lv(data-elv)を持つモンスター（現状デュラハーンのみ）は、
-      //   自動 = 自Lv-敵Lv の表から決定（Lv未設定なら従来の+20%）／手動 = 選択した率
-      // 端数は切り上げ。他のモンスターは従来の固定値(data-bonus)のまま。
+      // 強敵ボーナス: 敵Lv(data-elv)を持つモンスター（現状デュラハーンのみ）は +15% 固定（端数は切り上げ）。
+      // 他のモンスターは従来の固定値(data-bonus)のまま。
       if (elv > 0) {
-        const pct = sbSel === "auto"
-          ? (lvForAuto != null ? strongRate(lvForAuto, elv) : 20)
-          : (parseInt(sbSel) || 0);
-        bonusExp = Math.ceil(baseExp * pct / 100);
+        bonusExp = Math.ceil(baseExp * STRONG_BONUS_PCT / 100);
       }
 
-      let rate = 1.0;
-      if (fd) rate += 0.3;
-      if (elixir === "genki")   rate += 1;
-      if (elixir === "bakushin") rate += 2;
-      if (tr) rate += 1;
-      if (em) rate += 1;
+      // 倍率は「10倍した整数」(r10)で保持する（ver2.7.3）。
+      // 小数のまま足す(1.0+0.3+1=2.3)と、23990*2.3=55176.99999999999 のような浮動小数点誤差が出て、
+      // 数学的に整数ちょうどになる組み合わせで floor が1つ落ち、料理の+1補正が打ち消されていた。
+      let r10 = 10;
+      if (fd) r10 += 3;
+      if (elixir === "genki")   r10 += 10;
+      if (elixir === "bakushin") r10 += 20;
+      if (tr) r10 += 10;
+      if (em) r10 += 10;
 
       const partnerExpVal  = PARTNER_EXP[partnerKey] || 0;
       const passbookLimit  = parseInt(pbVal) || 0;
@@ -407,9 +405,10 @@
       const isHighLimit    = elixir === "bakushin" || tr;
       const expLimit       = isHighLimit ? 1499999 : 599999;
 
-      const rawCommon  = baseExp * rate + bonusExp;
+      // 通常分は10倍整数(tenths)のまま保持し、最後に整数除算で floor する
+      const tenCommon  = baseExp * r10 + bonusExp * 10;
+      const tenPCommon = partnerExpVal * r10;
       const rawAngel   = ag ? baseExp * 2 : 0;
-      const rawPCommon = partnerExpVal * rate;
       const rawPAngel  = ag ? partnerExpVal * 2 : 0;
 
       // ゲームの経験値計算ロジック（実測値10件から確定）:
@@ -417,10 +416,11 @@
       // 料理(+0.3)があるとrateに小数部が生じる。c=5,10等でtotalが
       // 数学的には整数になる組み合わせでもゲームは+1する。
       // 料理なし(rate=整数)はtotalが正確に整数になるため+1不要。
+      // 実測: ヘルガーディアン 料理+元気 10匹=599751 / ダースリカント+ズッキ 料理+元気 10匹=370117（ver2.7.3）
       // エンゼル経験値(rawAngel)のrateは×2固定(整数)なので
       // callCount倍しても小数部が生じない → fdBonus不要。
       const fdBonus = fd ? 1 : 0;
-      const rawTotalCommon = Math.floor(rawCommon * callCount + rawPCommon) + fdBonus;
+      const rawTotalCommon = Math.floor((tenCommon * callCount + tenPCommon) / 10) + fdBonus;
       const rawTotalAngel  = Math.floor(rawAngel  * callCount + rawPAngel);
       const rawTotal       = rawTotalCommon + rawTotalAngel;
 
@@ -642,20 +642,22 @@
         if (sn.lv !== lv) { sn.lv = lv; r.dataset.snapshot = JSON.stringify(sn); }
       });
     }
-    // レベル入力欄＝現在値の表示。入力中の欄は上書きしない。強敵「自動」の表示に現在の率を出す
+    // レベル入力欄＝現在値の表示。入力中の欄は上書きしない
     function updateLvInfo() {
-      const jobSel = $("lvJob"), inLv = $("lvIn"), inRem = $("lvRem"), sbSel = $("sb");
-      if (!inLv || !inRem || !jobSel || !sbSel) return;
+      const jobSel = $("lvJob"), inLv = $("lvIn"), inRem = $("lvRem");
+      if (!inLv || !inRem || !jobSel) return;
       const active = document.activeElement;
+      if (lvNow && active !== jobSel && jobSel.value !== lvNow.job) jobSel.value = lvNow.job;
+      const jobSelected = jobSel.value !== "";
+      inLv.disabled = !jobSelected;
+      inRem.disabled = !jobSelected;
+      $("btnLvDown").disabled = !jobSelected;
+      $("btnLvUp").disabled = !jobSelected;
+      $("lvRem").parentElement.querySelector(".lv-rem-label")?.classList.toggle("lv-disabled", !jobSelected);
       if (lvNow) {
-        if (active !== inLv)   inLv.value  = lvNow.lv;
-        if (active !== inRem)  inRem.value = lvNow.rem == null ? "" : Math.max(0, Math.round(lvNow.rem));
-        if (active !== jobSel && jobSel.value !== lvNow.job) jobSel.value = lvNow.job;
+        if (!lvInputsPending && active !== inLv)   inLv.value  = lvNow.lv;
+        if (!lvInputsPending && active !== inRem)  inRem.value = lvNow.rem == null ? "" : Math.max(0, Math.round(lvNow.rem));
       }
-      const ms  = $("ms");
-      const elv = parseInt(ms?.options[ms.selectedIndex]?.dataset.elv) || 0;
-      const autoOpt = sbSel.querySelector('option[value="auto"]');
-      if (autoOpt) autoOpt.textContent = (lvNow && elv) ? `自動+${strongRate(lvNow.lv, elv)}%` : "自動";
       if (lvNow) {
         try {
           localStorage.setItem(STORAGE_KEYS.LV, JSON.stringify({ job: lvNow.job, lv: lvNow.lv, rem: lvNow.rem == null ? null : Math.round(lvNow.rem) }));
@@ -859,20 +861,6 @@
       monsterWrap.appendChild(monsterSel);
       grid.appendChild(monsterWrap);
 
-      const sbWrap = document.createElement("label");
-      sbWrap.className = "snapshot-editor-field";
-      sbWrap.innerHTML = '<span>強敵</span>';
-      const sbSelEl = document.createElement("select");
-      sbSelEl.className = "snapshot-editor-select";
-      [["auto", "自動(Lv連動)"], ["0", "なし"], ["10", "+10%"], ["15", "+15%"], ["20", "+20%"]].forEach(([v, t]) => {
-        const o = document.createElement("option");
-        o.value = v; o.textContent = t;
-        if (v === String(snap.sb ?? "20")) o.selected = true;
-        sbSelEl.appendChild(o);
-      });
-      sbWrap.appendChild(sbSelEl);
-      grid.appendChild(sbWrap);
-
       const buffWrap = document.createElement("div");
       buffWrap.className = "snapshot-editor-buffs";
       const makeCheck = (id, labelText, checked) => {
@@ -939,7 +927,7 @@
       prevBox.type = "checkbox";
       prevBox.id = `snapshot-${row.dataset.bid}-prev`;
       const prevTxt = document.createElement("span");
-      prevTxt.textContent = "手前の履歴も含む（変更した項目のみ適用）";
+      prevTxt.textContent = "手前の履歴も含む";
       prevWrap.appendChild(prevBox);
       prevWrap.appendChild(prevTxt);
       grid.appendChild(prevWrap);
@@ -959,12 +947,12 @@
         const pb = editor.querySelector(`input[name="snapshot-pb-${row.dataset.bid}"]:checked`)?.value || snap.pb || "0";
         const ms = monsterSel.value;
 
-        const nextSnapshot = { ...snap, fd, tr, ag, em, elixir, pb, ms, sb: sbSelEl.value };
+        const nextSnapshot = { ...snap, fd, tr, ag, em, elixir, pb, ms };
         if (prevBox.checked) {
           // 変更した項目だけを抽出し、編集行以前の全グループへ適用する
           const changes = {};
-          ["fd", "tr", "ag", "em", "elixir", "pb", "ms", "sb"].forEach((k) => {
-            if (String(nextSnapshot[k]) !== String(snap[k] ?? (k === "sb" ? "20" : snap[k]))) changes[k] = nextSnapshot[k];
+          ["fd", "tr", "ag", "em", "elixir", "pb", "ms"].forEach((k) => {
+            if (String(nextSnapshot[k]) !== String(snap[k])) changes[k] = nextSnapshot[k];
           });
           applyGroupSnapshotUpTo(row, nextSnapshot, changes);
         } else {
@@ -1017,7 +1005,6 @@
         elixir: root.querySelector('input[name="e_exp"]:checked')?.value || "none",
         pb:     root.querySelector('input[name="pb"]:checked')?.value || "0",
         ms:     monsterId || $("ms").value,
-        sb:     $("sb")?.value || "20",
       };
       row.dataset.snapshot = JSON.stringify(snapshot);
 
@@ -1336,7 +1323,6 @@
         em: $("em")?.checked ?? false,
         pb: root.querySelector('input[name="pb"]:checked')?.value || "0",
         cn: $("cn")?.value ?? null,
-        sb: $("sb")?.value || "20",
       };
     }
 
@@ -1415,7 +1401,6 @@
           : null;
         lvNow = lvAnchor ? { ...lvAnchor } : null;
         if (data.options) {
-          if (data.options.sb && $("sb")) $("sb").value = data.options.sb;
           if ($("fd")) $("fd").checked = !!data.options.fd;
           if ($("tr")) $("tr").checked = !!data.options.tr;
           if ($("ag")) $("ag").checked = !!data.options.ag;
@@ -1553,14 +1538,10 @@ ${getStyles()}
   </div>
 
   <div class="lv-panel">
-    <select id="sb" class="passbook-select lv-sb" title="強敵ボーナス率（デュラハーンのみ適用）">
-      <option value="auto" selected>自動</option>
-      <option value="0">なし</option>
-      <option value="10">+10%</option>
-      <option value="15">+15%</option>
-      <option value="20">+20%</option>
+    <select id="lvJob" class="passbook-select lv-job" title="職（必要経験値の計算用）">
+      <option value="" selected>選択してください</option>
+      ${LV_JOB_OPTIONS_HTML}
     </select>
-    <select id="lvJob" class="passbook-select lv-job" title="職（必要経験値の計算用）">${LV_JOB_OPTIONS_HTML}</select>
     <button id="btnLvDown" type="button" class="call-count-arrow lv-arrow" aria-label="Lvを下げる"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <input id="lvIn" type="number" min="1" max="143" inputmode="numeric" class="lv-num" placeholder="Lv" title="現在のレベル（書き換えるとその時点から再計算。Lvと次までを空にすると連動解除）">
     <button id="btnLvUp" type="button" class="call-count-arrow lv-arrow" aria-label="Lvを上げる"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M9 5 L16 12 L9 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -1929,7 +1910,6 @@ ${getStyles()}
           lvNow    = { ...lvAnchor };
         }
       } catch (e) {}
-      $("sb").onchange = () => updateUI(false);
 
       // 入力欄の書き換え = 「この時点の状態はこれ」。
       //   Lv+次まで : 既存履歴の獲得分を逆算して起点を決め直す（以後は履歴の増減に連動。削除で巻き戻る）
@@ -1939,11 +1919,29 @@ ${getStyles()}
       const applyLvInput = () => {
         const job = $("lvJob").value;
         const lvStr = $("lvIn").value.trim(), remStr = $("lvRem").value.trim();
+        if (!job) {
+          lvAnchor = null;
+          lvNow = null;
+          $("lvIn").value = "";
+          $("lvRem").value = "";
+          lvInputsPending = false;
+          try { localStorage.removeItem(STORAGE_KEYS.LV); } catch (e) {}
+          $("lvIn").classList.remove("lv-err");
+          $("lvRem").classList.remove("lv-err");
+          updateTotal(); updateUI(false); saveSession();
+          return;
+        }
         if (lvStr === "" && remStr === "") {
           lvAnchor = null; lvNow = null;
+          lvInputsPending = false;
           try { localStorage.removeItem(STORAGE_KEYS.LV); } catch (e) {}
           $("lvIn").classList.remove("lv-err"); $("lvRem").classList.remove("lv-err");
           updateTotal(); updateUI(false); saveSession();
+          return;
+        }
+        if (lvStr === "" && remStr !== "") {
+          $("lvIn").classList.remove("lv-err");
+          $("lvRem").classList.remove("lv-err");
           return;
         }
         const hasRem = remStr !== "";
@@ -1953,6 +1951,7 @@ ${getStyles()}
         $("lvIn").classList.toggle("lv-err",  lvBad && (lvStr !== "" || hasRem));
         $("lvRem").classList.toggle("lv-err", remBad);
         if (lvBad || remBad) return;   // 範囲外・Lv未入力は何もしない（赤枠で示す）
+        lvInputsPending = false;
         rowCache.forEach(r => {
           const sn = snapOf(r);
           sn.lo = 1;
@@ -1990,6 +1989,7 @@ ${getStyles()}
         $(id).oninput = () => {
           const v = $(id).value;
           if (v.length > n) $(id).value = v.slice(0, n);
+          lvInputsPending = true;
         };
       });
       ["lvJob", "lvIn", "lvRem"].forEach(id => {
@@ -2050,12 +2050,20 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
-v2.11.0 ...検証中
-  - 通帳の「1Lv分引出」を撤廃し、「リセット」(全額引出)のみに統一
-    - Lv143に到達する分を超える額は引き出さず、通帳に残す
-    - すでにLv143のときは引出不可。Lv/次まで未入力のときはキャップなし
-  - 強敵ボーナスのプルダウン幅を拡張
-  - 履歴の条件編集に「手前の履歴も含む」を追加（変更した項目のみ、編集行以前の全行に適用）
+v2.7.3
+
+  - 経験値の計算誤差を修正しました。料理ありで整数ちょうどになる組み合わせ（例: ヘルガーディアン 料理+元気 10匹）で、ゲームより1少なく表示されていました
+
+v2.7.2
+
+  - デュラハーンの強敵ボーナスを +15% 固定にしました。PTに141以上がいるとレベル差が変わるため、職業レベルからの自動判定と率のプルダウンは廃止しました
+  - 職・Lv・次までの入力は、レベルの推移を確認する用として残しています（任意）
+
+v2.7.0
+
+  - 職業レベルに応じた強敵ボーナスを自動計算し、設定から手動でも選べるようにしました
+  - 通帳の引き出しについて1レベル分引き出しを撤廃しました。代わりに次のレベルまでの経験値を入力してあると、カンスト時に通帳側に経験値が残ります。設定していない場合は通常通り引き出されます
+  - 履歴の条件編集を、編集した行より前の履歴にも同時に適用できるようにしました
 
 v2.6.0 ...最終更新日 2026/10/01
   - 履歴行の条件編集（モンスター・料理・修練・エンゼル・皇帝・エリクサー・通帳）を追加。履歴の経験値部分を選択して編集可能
@@ -2327,13 +2335,16 @@ v1.1.7
   /* ── 強敵・レベル推移（1行・入力欄が現在値の表示を兼ねる） ───────────── */
   .lv-panel{background:#f8f9fc;border-radius:6px;padding:3px 6px;margin-bottom:8px;display:flex;gap:4px;align-items:center;flex-wrap:nowrap;font-size:11px}
   .lv-panel select,.lv-panel input{min-width:0;font-size:11px;padding:2px 2px;box-sizing:border-box}
-  .lv-sb{flex:0 0 auto;width:80px}
-  .lv-job{flex:1 1 0;max-width:84px}
+  .lv-panel input[type="number"]{-moz-appearance:textfield}
+  .lv-panel input[type="number"]::-webkit-inner-spin-button,.lv-panel input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .lv-job{flex:1 1 0;max-width:120px}
   .lv-num{flex:0 0 32px;width:32px;text-align:right}
-  .lv-rem{flex:0 0 56px;width:56px;text-align:right}
+  .lv-rem{flex:0 0 64px;width:64px;text-align:right}
   .lv-rem-label{font-size:8px;line-height:1.05;color:#666;text-align:right;white-space:nowrap;margin-left:auto}
   .lv-arrow{flex:0 0 24px;height:24px}
   .lv-arrow .call-count-arrow-icon{width:16px;height:16px}
+  .lv-panel :disabled{background:#e5e7eb!important;color:#9ca3af!important;border-color:#d1d5db!important;cursor:not-allowed;opacity:.75}
+  .lv-rem-label.lv-disabled{color:#aaa}
   .lv-err{outline:2px solid #e55;outline-offset:-1px}
 
   /* ── 履歴コピー＋想定玉給 ────────────────────────────────────────── */

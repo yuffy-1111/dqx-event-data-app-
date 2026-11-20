@@ -9,7 +9,9 @@
     DISABLED: 'dqx_disabled_final10',
     HIDDEN: 'dqx_hidden_tasks_v1',
     LIM_CHECKS: 'dqx_limited_checks_v3',
-    CUSTOM_EVENTS: 'dqx_custom_events_v1'
+    CUSTOM_EVENTS: 'dqx_custom_events_v1',
+    VER_SETUP: 'dqx_ver_setup_v1',  // Ver設定の初回確認を済ませたか（'done' | 'skipped'）
+    GUIDE_SEEN: 'dqx_guide_seen_checker_v2'
   });
   const STORAGE_KEY_CHARS        = STORAGE_KEYS.CHARS;
   const STORAGE_KEY_CHECK_PREFIX = STORAGE_KEYS.CHECK_PREFIX;
@@ -104,6 +106,53 @@
     { name: '覚醒の秘石',             taskId: 'sekkai',   key: 'sekkai' },
     { type: 'section', label: '▼ 受け取り', sectionId: 'receive-15-section',    taskKey: 'section_receive_15', cycleTaskId: 'hanabira' },
     { name: '黄金の花びら',           taskId: 'hanabira', key: 'hanabira' },
+  ];
+
+  // ===== タスク情報（必要Ver・場所・説明）=====
+  // ver: そのタスクが使えるようになるVer。キャラの到達Verがこれ未満なら、そのキャラの欄をグレーアウトする。
+  //      全キャラが未到達の行は、行ごと非表示にする。
+  // place / desc: 情報アイコン（ⓘ）を押したときのポップアップに表示する。
+  const TASK_INFO = {
+    daily1: {"ver": 1.0, "place": "各町の入口にいる討伐隊員", "desc": "毎日1回受けられる討伐依頼。達成すると経験値・ゴールド・名声・錬金石が手に入る。"},
+    daily2: {"ver": 3.1, "place": "レグナードは炎の領界のマティルの村にある廃屋（プリネラ）。ダークキングは闇の領界の楽園、メイヴは嵐の領界のストの町", "desc": "各ボス1日1回、勝つと紫宝箱から強さに応じた数（7〜11個数）のレグナライトとボスごとの素材（1〜5）が手に入る強敵バトル。2回目以降はそれぞれ赤宝箱から低確率少数手に入る。レグナライトは武器や顔アクセなどと交換できる。"},
+    daily3: {"ver": 1.0, "place": "ガートラント城地下のギズマンから、クエスト494「聖守護者の導き」を受けて解放", "desc": "常闇の聖戦より難しい強敵バトル。1日1回、勝つと強さに応じた水晶の羽根（2〜8個）が手に入り、聖守護者のゆびわなどと交換できる。"},
+    daily4: {"ver": 6.0, "place": "天星郷フォーリオン・聖天舎1階のミレリーから、クエスト702「深淵の咎人たち」を受けて解放。解放後はレクスルクスの楔から挑戦", "desc": "1日1回、勝つと各ボスからラクリマが手に入る。8人で参加する同盟コンテンツである。ラクリマは断罪のゆびわの強化に使う。"},
+    daily5: {"ver": 6.0, "place": "daily4と同じ", "desc": "1日1回、勝つと各ボスから果実が手に入る。4人で戦うコンテンツである。果実はボスをモチーフにした武器などが手に入る。"},
+    weekly1: {"ver": 1.0, "place": "強戦士の書から再戦", "desc": "ストーリーで倒した試練の門のボスと、週1回ずつ再戦できる。経験値・特訓・宝珠などが手に入る。"},
+    weekly2: {"ver": 2.3, "place": "偽グランゼドーラ城下町／真グランゼドーラ城下町の討伐隊員", "desc": "毎週日曜6時に更新される討伐依頼。経験値か特訓スタンプのほか、錬金石10個などが手に入る。"},
+    weekly3: {"ver": 2.1, "place": "勇者姫の石から真グランゼドーラ城のテラスにいき、部屋に入ると挑戦できる。", "desc": "ストーリー関連のクエスト、クエスト344「集結!叡智の冠」勇気の輝石を3つ消費して挑戦する迷宮。勇気の輝石は毎週日曜の朝6時に15個ずつ配布される。報酬はうつしよの箱などで、輝石のベルトが手に入る。"},
+    weekly4: {"ver": 2.0, "place": "偽デフェル荒野（E-6）のピラミッド。入口のヤヨイ（Lv60以上）", "desc": "9つの霊廟をクリアすると、霊廟ごとに週1回、黄金の秘宝がもらえる。ヤヨイに鑑定してもらうと、胸アクセのブローチやアンクなどが出る。"},
+    weekly5: {"ver": 2.0, "place": "グレン城下町駅、アズラン、ジュレット、ガタラ、オルフェア、ラッカラン、ダーマ神殿などにいる達人より受注", "desc": "達人からのお題をクリアすると宝珠がもらえる週課。"},
+    weekly6: {"ver": 5.0, "place": "砂の都ファラザード・裏通りの先にある万魔の塔。入り口のギラム（Lv100以上）", "desc": "次々に現れる敵と戦い、災壇の合計のハイスコアの合計に応じた報酬とギラムソウルがもらえる。週1回、ギラムソウルを万魔の箱等と交換できる。"},
+    weekly7: {"ver": 5.5, "place": "バルディスタ城内のエレベーターからヴァリーブートキャンプへ。受付のマキシから参加（Lv100以上）", "desc": "ウィークリーミッションを達成すると、特訓スタンプや、実績に応じてバージョンごとに報酬がもらえる。"},
+    weekly8: {"ver": 5.2, "place": "大魔王城B-4にいる幽霊作家バケンズから受注", "desc": "依頼帳を達成すると、経験値や特訓スタンプ、錬金石などがもらえる。日曜6時に更新される。"},
+    weekly9: {"ver": 6.2, "place": "神都フォーリオン・中層の酒場前にいる筋肉伝道師キタエルから受注", "desc": "育成帳を達成すると、経験値や特訓スタンプ、錬金石などがもらえる。日曜6時に更新される。"},
+    weekly10: {"ver": 7.0, "place": "異界アスタルジア", "desc": "こころの結晶を集めて、異界のなかまのこころアクセを入手・強化する。プレゼントの品揃えも週ごとに更新される。"},
+    weekly11: {"ver": 7.0, "place": "異界アスタルジア内", "desc": "異界アスタルジアの新バトル。報酬としてガナサダイのこころの効果を選び、ランダムに効果値が選ばれる邪悪な思念片が手に入る。"},
+    weekly12: {"ver": 8.0, "place": "オルファの丘よりイワノフ博士から解放し、モンスターズ・ラボ内のアカイワ博士から挑戦", "desc": "まもののこころの結晶が手に入るバトル。6個集めると、まもののこころと交換できる。"},
+    roster: {"ver": 1.0, "place": "モコモコパークのロスターから受注", "desc": "毎月1日・15日に更新されるお題のバトル。お題のコイン・メダル・カードなどを1枚所持していれば参加でき、報酬のアクセサリーの宝箱は4つ出現する。報酬はふくびき券や経験値など。"},
+    lemon: {"ver": 1.0, "place": "", "desc": "毎月1日・15日に更新されるクイズ。経験値・特訓・ふくびき券などがもらえる。"},
+    tasogare: {"ver": 1.0, "place": "レンドア南の詩人ナスガルドから受注（Lv80以上）", "desc": "毎月1日・15日に報酬が更新される演目バトル。元気玉・ふくびき券・ボスコイン・錬金石・黄金の花びらなどがもらえる。"},
+    jashin: {"ver": 2.0, "place": "ランドン山脈山頂付近より、邪神の宮殿へ入ると挑戦できる。（Lv85以上）", "desc": "毎月10日・25日にお題が更新される同盟バトル。初回クリアで戦神のベルトと錬金石20個が手に入る。"},
+    monthly1: {"ver": 7.0, "place": "異界アスタルジア内", "desc": "毎月1日に課題と報酬が更新され、天啓の石や仲間へのプレゼントなどが手に入る。"},
+    pani: {"ver": 6.0, "place": "", "desc": "創生珠を集めて女神の木を育てると、ステータスが上がる。ボス自体と初回討伐の報酬は3日ごとに入れ替わる。"},
+    konmeiku: {"ver": 6.0, "place": "", "desc": "毎月1日・15日に報酬が更新され、昏冥晶や創生珠がもらえる。（創生珠による女神の木のレベルが合計80以上でないと昏冥晶は使用できない）"},
+    mamono_alliance: {"ver": 8.0, "place": "", "desc": "毎月20日ごろから25日ごろまで挑める。モンスターハートが手に入り、まもののこころと交換できる。"},
+    monthly2: {"ver": 2.0, "place": "", "desc": "毎月1日に1回だけ、宝珠ポイント100Pとふくびき券100枚を交換できる。"},
+    sekkai: {"ver": 2.0, "place": "光の扉", "desc": "毎月10日に、光の扉のアンルシアから覚醒の秘石を受け取れる。"},
+    hanabira: {"ver": 1.0, "place": "岳都ガタラの継続特典係ミノノ", "desc": "毎月15日に、継続特典として黄金の花びらを受け取れる。該当月頭の1日に利用券が有効なことが条件。"},
+  };
+
+  // キャラごとに選べるVer一覧（小数点1桁）。新Verが増えたらここに足す。
+  const VER_OPTIONS = [
+    1.0,
+    2.0, 2.1, 2.2, 2.3, 2.4,
+    3.0, 3.1, 3.2, 3.3, 3.4, 3.5,
+    4.0, 4.1, 4.2, 4.3, 4.4, 4.5,
+    5.0, 5.1, 5.2, 5.3, 5.4, 5.5,
+    6.0, 6.1, 6.2, 6.3, 6.4, 6.5,
+    7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6,
+    8.0, 8.1, 8.2, 8.3, 8.4,
   ];
 
   // ===== 共通ユーティリティ =====
@@ -698,6 +747,51 @@
     return { name: '昏冥庫パニガルム', detail: `未開催（次回 ${fmt(nextStart)}〜${fmt(nextEnd)}）` };
   }
 
+  // ===== Ver（バージョン進行）関連 =====
+
+  /** Verを10倍の整数にして比較する（浮動小数の誤差を避けるため） */
+  function verToInt(v) { return Math.round(Number(v) * 10); }
+
+  /** キャラにVerが設定されているか（未設定のキャラは制限なし＝全項目を表示） */
+  function hasVer(char) {
+    return char && char.ver !== undefined && char.ver !== null && char.ver !== '' && !isNaN(Number(char.ver));
+  }
+
+  /** このキャラがタスクの必要Verに達していないか */
+  function isUnreached(taskKey, char) {
+    const info = TASK_INFO[taskKey];
+    if (!info || typeof info.ver !== 'number' || !hasVer(char)) return false;
+    return verToInt(char.ver) < verToInt(info.ver);
+  }
+
+  /** 全キャラが未到達のタスクか（該当すれば行ごと非表示にする）。キャラ0人、またはVer未設定のキャラがいる場合は false */
+  function isVerHiddenTask(taskKey) {
+    if (!characters.length) return false;
+    return characters.every(c => hasVer(c) && isUnreached(taskKey, c));
+  }
+
+  function formatVer(v) { return Number(v).toFixed(1); }
+
+  /** Verの<select>を作る。withUnset=true で先頭に「Ver未設定」を付ける */
+  function createVerSelect(currentVer, withUnset, className) {
+    const sel = document.createElement('select');
+    if (className) sel.className = className;
+    if (withUnset) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = 'Ver未設定';
+      sel.appendChild(o);
+    }
+    for (const v of VER_OPTIONS) {
+      const o = document.createElement('option');
+      o.value = formatVer(v);
+      o.textContent = 'Ver' + formatVer(v);
+      sel.appendChild(o);
+    }
+    sel.value = hasVer({ ver: currentVer }) ? formatVer(currentVer) : '';
+    return sel;
+  }
+
   // ===== キャラクター管理 =====
   let characters   = [];
   let nextCharId   = 1;
@@ -781,19 +875,58 @@
     const colorInput = document.getElementById('newCharColor');
     const name = nameInput.value.trim();
     if (!name) { showToast('キャラ名を入力してください', 'error'); return; }
-    characters.push({ id: nextCharId++, name, color: colorInput.value });
+    const verInput = document.getElementById('newCharVer');
+    const newChar  = { id: nextCharId++, name, color: colorInput.value };
+    if (verInput && verInput.value !== '') newChar.ver = parseFloat(verInput.value);
+    characters.push(newChar);
     saveCharacters();
     nameInput.value = '';
     renderAll();
   }
 
   function deleteCharacter(charId) {
-    // そのキャラのロック状態を全て解除してから削除
-    for (const item of SECTIONS_TEMPLATE) {
-      if (!item.type) setDisabled(item.key, charId, false);
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+    const isLastCharacter = characters.length === 1;
+    const message = `「${char.name}」を削除しますか？\nこのキャラクターのチェック・ロック状態も削除され、元に戻せません。${isLastCharacter ? '\n全キャラクターを削除すると、初回登録画面に戻ります。' : ''}\n引き継ぎコードがある場合は、読み込んで復元できます。`;
+    if (!window.confirm(message)) return;
+
+    for (const key of disabledMap.keys()) {
+      if (key.endsWith(`_${charId}`)) disabledMap.delete(key);
     }
+    saveDisabled();
+
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith(STORAGE_KEY_CHECK_PREFIX) && key.endsWith(`_${charId}`)) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      if (!key.startsWith(`${STORAGE_KEYS.LIM_CHECKS}_`)) continue;
+
+      const remainder = key.slice(STORAGE_KEYS.LIM_CHECKS.length + 1);
+      const marker = `_${charId}_`;
+      let markerIndex = remainder.indexOf(marker);
+      while (markerIndex !== -1) {
+        const eventId = remainder.slice(0, markerIndex);
+        const periodKey = remainder.slice(markerIndex + marker.length);
+        const isRecurringPeriod = periodKey === 'last_date'
+          || /^\d{4}-\d{1,2}-\d{1,2}$/.test(periodKey)
+          || /^w_\d+$/.test(periodKey);
+        const isOncePeriod = periodKey.startsWith('once_')
+          && periodKey.slice('once_'.length) === eventId;
+        if (isRecurringPeriod || isOncePeriod) {
+          localStorage.removeItem(key);
+          break;
+        }
+        markerIndex = remainder.indexOf(marker, markerIndex + 1);
+      }
+    }
+
     characters = characters.filter(c => c.id !== charId);
     saveCharacters();
+    if (characters.length === 0) localStorage.removeItem(STORAGE_KEYS.VER_SETUP);
     renderAll();
   }
 
@@ -960,7 +1093,7 @@
         return item && loadCheck(tKey, char.id, effectiveDate, item.taskId) ? '1' : '0';
       }).join('');
       const lockBits = TASK_KEY_ORDER.map(tKey => isDisabled(tKey, char.id) ? '1' : '0').join('');
-      return [char.name, char.color.replace('#', ''), bitsToBase64(checkBits), bitsToBase64(lockBits)].join('~');
+      return [char.name, char.color.replace('#', ''), bitsToBase64(checkBits), bitsToBase64(lockBits), hasVer(char) ? String(Number(char.ver)) : ''].join('~');
     });
 
     // --- タスク/セクションの非表示（全体で1本、ビット圧縮） ---
@@ -1030,11 +1163,12 @@
     for (const rec of records) {
       const fields = rec.split('~');
       if (fields.length < 4) continue;
-      const [name, colorHex, checkB64, lockB64] = fields;
+      const [name, colorHex, checkB64, lockB64, verStr] = fields;
       const checkBits = base64ToBits(checkB64, TASK_KEY_ORDER.length);
       const lockBits  = base64ToBits(lockB64, TASK_KEY_ORDER.length);
       if (!checkBits || !lockBits) continue;
-      newChars.push({ name, colorHex, checkBits, lockBits });
+      const ver = (verStr !== undefined && verStr !== '' && !isNaN(Number(verStr))) ? Number(verStr) : undefined;
+      newChars.push({ name, colorHex, checkBits, lockBits, ver });
     }
     if (newChars.length === 0) { showToast('有効なキャラクターデータがありませんでした', 'error'); return; }
 
@@ -1078,7 +1212,9 @@
     // キャラクター・チェック・ロックを復元
     for (const nc of newChars) {
       const newId = nextCharId++;
-      characters.push({ id: newId, name: nc.name, color: '#' + nc.colorHex });
+      const restored = { id: newId, name: nc.name, color: '#' + nc.colorHex };
+      if (nc.ver !== undefined) restored.ver = nc.ver;
+      characters.push(restored);
       TASK_KEY_ORDER.forEach((tKey, idx) => {
         const item = taskItems.find(t => t.key === tKey);
         if (item && nc.checkBits[idx] === '1') saveCheck(tKey, newId, true, exportedEffective);
@@ -1110,6 +1246,7 @@
 
     showToast(`✓ 全データを上書き読み込みしました！（キャラ${characters.length}人）`, 'success');
     renderAll();
+    showCheckerGuide();
   }
 
   function showImportDialog() {
@@ -1564,6 +1701,7 @@
     const lSecRow = document.createElement('tr');
     lSecRow.className = 'section-row';
     const lSecTd = document.createElement('td');
+    lSecTd.colSpan = 2;
     lSecTd.innerHTML = `<div style="display:flex;align-items:baseline;">${sectionLabel}</div>`;
     lSecRow.appendChild(lSecTd);
     leftTbody.appendChild(lSecRow);
@@ -1586,6 +1724,7 @@
       const lRow = document.createElement('tr');
       if (isHiddenRow && isEditMode) lRow.style.opacity = '0.5';
       const lTd  = document.createElement('td');
+      lTd.colSpan = 2;
       lTd.className = 'task-name';
       if (isEditMode) {
         lTd.appendChild(createHideToggleBtn(isHiddenRow, () => toggleHidden(eventHiddenKey)));
@@ -1634,6 +1773,265 @@
     if (customEvents.length) buildEventSectionRows(customEvents, '▼ 期間限定イベント（手入力）', leftTbody, rightTbody, targetDate);
 
     requestAnimationFrame(syncRowHeights);
+  }
+
+  // ===== 情報ポップアップ・Ver設定ダイアログ =====
+
+  /** 共通：暗いオーバーレイ＋ボックスを作って body に付ける。{ overlay, box } を返す */
+  function openModal(id) {
+    const prev = document.getElementById(id);
+    if (prev) prev.remove();
+    const overlay = document.createElement('div');
+    overlay.id = id;
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10600;display:flex;align-items:center;justify-content:center;padding:16px;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1e293b;color:#fff;border-radius:16px;padding:20px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;box-shadow:0 16px 40px rgba(0,0,0,0.5);font-size:14px;line-height:1.6;';
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    return { overlay, box };
+  }
+
+  function modalButton(label, primary, onClick) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'flex:1;padding:8px;border:none;border-radius:10px;cursor:pointer;font-size:14px;color:#fff;'
+      + (primary ? 'background:#0066cc;font-weight:bold;' : 'background:#374151;');
+    b.onclick = onClick;
+    return b;
+  }
+
+  /** タスクの情報（必要Ver・場所・説明・メモ）をポップアップ表示 */
+  function showTaskInfo(taskKey) {
+    const item = SECTIONS_TEMPLATE.find(t => t.key === taskKey);
+    const info = TASK_INFO[taskKey];
+    if (!item || !info) return;
+    const { overlay, box } = openModal('checker-task-info');
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const title = document.createElement('p');
+    title.textContent = item.name;
+    title.style.cssText = 'margin:0 0 10px;font-weight:bold;font-size:15px;';
+    box.appendChild(title);
+
+    const addRow = (label, text) => {
+      if (!text) return;
+      const row = document.createElement('div');
+      row.style.cssText = 'margin-bottom:8px;';
+      const l = document.createElement('div');
+      l.textContent = label;
+      l.style.cssText = 'font-size:11px;color:#94a3b8;';
+      const t = document.createElement('div');
+      t.textContent = text;
+      row.appendChild(l);
+      row.appendChild(t);
+      box.appendChild(row);
+    };
+    if (typeof info.ver === 'number') addRow('必要Ver', 'Ver' + formatVer(info.ver) + ' 以降');
+    addRow('場所・受付', info.place);
+    addRow('説明', info.desc);
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;margin-top:14px;';
+    btnRow.appendChild(modalButton('閉じる', false, () => overlay.remove()));
+    box.appendChild(btnRow);
+  }
+
+  // ===== 初回セットアップ（キャラ登録＋Ver設定） =====
+  // 完了するまで本体（表やツールバー）は表示しない。
+  // 画面内のパネルとして出すので、登録せずにホームへ戻っても何も残らず、
+  // フラグも立たないため、次に開いたときにもう一度セットアップが出る。
+  // フラグ(STORAGE_KEYS.VER_SETUP)は「完了」または「今はしない」を選んだ時だけ保存する。
+
+  const SETUP_HIDE_IDS = ['toolbar', 'todayInfo', 'tableWrapper', 'detailTableContainer'];
+
+  function showCheckerGuide(force) {
+    if (characters.length === 0 || isSetupPending()) return;
+    const tools = window.DQXTools;
+    if (!tools || typeof tools.showGuide !== 'function') return;
+    tools.showGuide([
+      { selector: '#newCharName', title: 'キャラクターの追加', text: 'キャラクター名を入力し、色や進行バージョンを選んで追加できます。複数キャラクターを登録できます。' },
+      { selector: '#rightBody input[type="checkbox"]', title: '進捗チェック', text: '各項目のチェックはキャラクターごとに保存されます。日課・週課などは更新時刻に合わせてリセットされます。' },
+      { selector: '#rightHeaderRow .char-ver-select', title: '進行バージョン', text: 'キャラクターごとの進行バージョンを設定すると、未到達の項目を見分けられます。' },
+      { selector: '#editModeBtn', title: '編集モード', text: 'チェック欄のロックや、不要な項目の非表示を設定できます。' },
+      { selector: '#exportBtn', title: 'バックアップと引き継ぎ', text: '書き出しで引き継ぎコードを作成できます。読み込みは現在のデータを上書きするため、内容を確認してから実行してください。' },
+      { selector: '#eventManageBtn', title: '期間限定イベント', text: 'イベントを追加すると、この端末のチェッカーに表示して進捗を管理できます。' },
+    ], STORAGE_KEYS.GUIDE_SEEN, { force: !!force });
+  }
+
+  /** キャラ0人なら常に登録画面へ戻し、それ以外は未設定フラグとVer設定を確認 */
+  function isSetupPending() {
+    if (characters.length === 0) return true;
+    if (localStorage.getItem(STORAGE_KEYS.VER_SETUP)) return false;
+    return characters.some(c => !hasVer(c));
+  }
+
+  function setMainVisible(visible) {
+    for (const id of SETUP_HIDE_IDS) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = visible ? '' : 'none';
+    }
+  }
+
+  function removeSetupPanel() {
+    const panel = document.getElementById('checker-setup-panel');
+    if (panel) panel.remove();
+    setMainVisible(true);
+  }
+
+  function setupButton(label, primary, onClick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.className = 'setup-btn' + (primary ? ' primary' : '');
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function showSetupPanel() {
+    const toolbar = document.getElementById('toolbar');
+    if (!toolbar) return;
+    const mode = characters.length ? 'ver' : 'register';
+    const prev = document.getElementById('checker-setup-panel');
+    if (prev && prev.dataset.mode === mode) { setMainVisible(false); return; }
+    if (prev) prev.remove();
+    setMainVisible(false);
+
+    const panel = document.createElement('div');
+    panel.id = 'checker-setup-panel';
+    panel.className = 'setup-panel';
+    panel.dataset.mode = mode;
+    toolbar.parentElement.insertBefore(panel, toolbar.parentElement.firstChild);
+
+    const h = document.createElement('h2');
+    const p = document.createElement('p');
+    panel.appendChild(h);
+    panel.appendChild(p);
+
+    // ---- キャラ0人：登録を必須にする ----
+    if (mode === 'register') {
+      h.textContent = '最初にキャラクターを登録してください';
+      p.textContent = '1人以上登録すると使い始められます。進行バージョンを選ぶと、まだ解放されていない項目は表示されません（ネタバレ防止）。「Ver未設定」の場合は、すべての項目を表示します。';
+
+      const drafts = [];
+      const list = document.createElement('div');
+      panel.appendChild(list);
+
+      const form = document.createElement('div');
+      form.className = 'setup-row';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.placeholder = 'キャラ名';
+      nameInput.style.flex = '1';
+      nameInput.style.minWidth = '0';
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = '#d4eaf3';
+      colorInput.className = 'setup-color';
+      const verSel = createVerSelect(undefined, true);
+      const addBtn = setupButton('＋ 追加', false, () => addDraft());
+      addBtn.style.flex = '0 0 auto';
+      addBtn.style.padding = '7px 12px';
+      form.appendChild(nameInput);
+      form.appendChild(colorInput);
+      form.appendChild(verSel);
+      form.appendChild(addBtn);
+      panel.appendChild(form);
+
+      const actions = document.createElement('div');
+      actions.className = 'setup-actions';
+      const startBtn = setupButton('この内容で始める', true, () => commit());
+      startBtn.disabled = true;
+      const importBtn = setupButton('引き継ぎコードを読み込む', false, () => showImportDialog());
+      actions.appendChild(startBtn);
+      actions.appendChild(importBtn);
+      panel.appendChild(actions);
+
+      const renderDrafts = () => {
+        list.innerHTML = '';
+        drafts.forEach((d, i) => {
+          const row = document.createElement('div');
+          row.className = 'setup-row';
+          const nm = document.createElement('span');
+          nm.className = 'setup-name';
+          nm.textContent = d.name + '（' + (d.ver === undefined ? 'Ver未設定' : 'Ver' + formatVer(d.ver)) + '）';
+          nm.style.borderLeftColor = d.color;
+          const del = document.createElement('button');
+          del.type = 'button';
+          del.textContent = '✕';
+          del.className = 'char-delete';
+          del.addEventListener('click', () => { drafts.splice(i, 1); renderDrafts(); });
+          row.appendChild(nm);
+          row.appendChild(del);
+          list.appendChild(row);
+        });
+        startBtn.disabled = drafts.length === 0 && nameInput.value.trim() === '';
+      };
+      const addDraft = () => {
+        const name = nameInput.value.trim();
+        if (!name) { showToast('キャラ名を入力してください', 'error'); return false; }
+        drafts.push({ name, color: colorInput.value, ver: verSel.value === '' ? undefined : parseFloat(verSel.value) });
+        nameInput.value = '';
+        renderDrafts();
+        return true;
+      };
+      const commit = () => {
+        // 名前を入力したまま「追加」を押していない場合は、それも登録する
+        if (nameInput.value.trim() !== '') addDraft();
+        if (!drafts.length) return;
+        for (const d of drafts) {
+          const c = { id: nextCharId++, name: d.name, color: d.color };
+          if (d.ver !== undefined) c.ver = d.ver;
+          characters.push(c);
+        }
+        saveCharacters();
+        localStorage.setItem(STORAGE_KEYS.VER_SETUP, 'done');
+        removeSetupPanel();
+        renderAll();
+        showCheckerGuide();
+      };
+      nameInput.addEventListener('input', renderDrafts);
+      nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addDraft(); });
+      renderDrafts();
+      return;
+    }
+
+    // ---- キャラはいるがVer未設定：確認して設定（今はしない も可） ----
+    h.textContent = '進行バージョンの設定（ネタバレ防止）';
+    p.textContent = 'キャラごとに進行バージョンを設定すると、まだ解放されていない項目をグレーアウトし、全キャラが未到達の項目は表示しません。「Ver未設定」のキャラは、すべての項目を表示します。あとからキャラ名の下でも変更できます。';
+    const selects = [];
+    for (const char of characters) {
+      const row = document.createElement('div');
+      row.className = 'setup-row';
+      const nm = document.createElement('span');
+      nm.className = 'setup-name';
+      nm.textContent = char.name;
+      nm.style.borderLeftColor = char.color;
+      const sel = createVerSelect(char.ver, true);
+      row.appendChild(nm);
+      row.appendChild(sel);
+      panel.appendChild(row);
+      selects.push({ char, sel });
+    }
+    const actions = document.createElement('div');
+    actions.className = 'setup-actions';
+    actions.appendChild(setupButton('保存して始める', true, () => {
+      for (const { char, sel } of selects) {
+        if (sel.value === '') delete char.ver;
+        else char.ver = parseFloat(sel.value);
+      }
+      saveCharacters();
+      localStorage.setItem(STORAGE_KEYS.VER_SETUP, 'done');
+      removeSetupPanel();
+      renderAll();
+      showCheckerGuide();
+    }));
+    actions.appendChild(setupButton('今はしない', false, () => {
+      localStorage.setItem(STORAGE_KEYS.VER_SETUP, 'skipped');
+      removeSetupPanel();
+      renderAll();
+      showCheckerGuide();
+    }));
+    panel.appendChild(actions);
   }
 
   // ===== 共通 DOM 部品 =====
@@ -1689,6 +2087,10 @@
   // ===== メイン描画 =====
 
   function renderAll() {
+    // セットアップ未完了の間は表を描画しない（ネタバレ防止・キャラ未登録のまま使わせない）
+    if (isSetupPending()) { showSetupPanel(); return; }
+    removeSetupPanel();
+
     const targetDate    = getJSTNow();
     const effectiveDate = getEffectiveDate(targetDate);
 
@@ -1739,6 +2141,17 @@
         delBtn.className  = 'char-delete';
         delBtn.addEventListener('click', ((id) => () => deleteCharacter(id))(char.id));
 
+        const verSel = createVerSelect(char.ver, true, 'char-ver-select');
+        verSel.title = 'このキャラの進行バージョン';
+        verSel.addEventListener('change', ((id) => (e) => {
+          const c = characters.find(x => x.id === id);
+          if (!c) return;
+          if (e.target.value === '') delete c.ver; else c.ver = parseFloat(e.target.value);
+          saveCharacters();
+          renderAll();
+        })(char.id));
+
+        controlsDiv.appendChild(verSel);
         controlsDiv.appendChild(colorInput);
         controlsDiv.appendChild(delBtn);
         contentDiv.appendChild(nameSpan);
@@ -1754,8 +2167,22 @@
     leftTbody.innerHTML  = '';
     rightTbody.innerHTML = '';
 
-    for (const item of SECTIONS_TEMPLATE) {
+    // 全キャラが未到達のタスク（Ver設定による自動非表示。手動の非表示設定とは別扱い）
+    const verHiddenKeys = new Set(
+      SECTIONS_TEMPLATE.filter(i => !i.type && isVerHiddenTask(i.key)).map(i => i.key)
+    );
+
+    for (let idx = 0; idx < SECTIONS_TEMPLATE.length; idx++) {
+      const item = SECTIONS_TEMPLATE[idx];
       if (item.type === 'section') {
+        // 配下のタスクがすべてVer未到達で非表示なら、セクション見出しも出さない
+        let sectionHasTask = false, sectionAllVerHidden = true;
+        for (let j = idx + 1; j < SECTIONS_TEMPLATE.length && !SECTIONS_TEMPLATE[j].type; j++) {
+          sectionHasTask = true;
+          if (!verHiddenKeys.has(SECTIONS_TEMPLATE[j].key)) sectionAllVerHidden = false;
+        }
+        if (sectionHasTask && sectionAllVerHidden) continue;
+
         const isHiddenRow = isHidden(item.taskKey);
         if (!isEditMode && isHiddenRow) continue;
 
@@ -1764,6 +2191,7 @@
         lRow.className = 'section-row';
         if (isHiddenRow && isEditMode) lRow.style.opacity = '0.5';
         const lTd = document.createElement('td');
+        lTd.colSpan = 2;
         lTd.style.padding = '4px 8px';
 
         const container = document.createElement('div');
@@ -1798,6 +2226,7 @@
       }
 
       // タスク行
+      if (verHiddenKeys.has(item.key)) continue;
       const isHiddenRow = isHidden(item.key);
       if (!isEditMode && isHiddenRow) continue;
 
@@ -1813,6 +2242,20 @@
       nameSpan.innerText = item.name;
       lTd.appendChild(nameSpan);
       lRow.appendChild(lTd);
+
+      // 情報列（ⓘ を押すと場所・説明などをポップアップ表示）
+      const infoTd = document.createElement('td');
+      infoTd.className = 'info-cell';
+      if (TASK_INFO[item.key]) {
+        const infoBtn = document.createElement('button');
+        infoBtn.type = 'button';
+        infoBtn.className = 'info-btn';
+        infoBtn.textContent = 'ⓘ';
+        infoBtn.title = '情報を見る';
+        infoBtn.addEventListener('click', ((k) => () => showTaskInfo(k))(item.key));
+        infoTd.appendChild(infoBtn);
+      }
+      lRow.appendChild(infoTd);
       leftTbody.appendChild(lRow);
 
       // 右行（チェックボックス or 編集ボタン）
@@ -1823,10 +2266,20 @@
         const td = document.createElement('td');
         td.style.backgroundColor = getColColor(char.color);
         const disabled = isDisabled(item.key, char.id);
+        const unreached = isUnreached(item.key, char);
+        if (unreached) { td.classList.add('ver-locked'); td.title = 'このキャラはVer' + formatVer(TASK_INFO[item.key].ver) + '未到達'; }
 
         if (isEditMode) {
           td.classList.add('edit-mode-cell');
           td.appendChild(createEditLockBtn(disabled, () => toggleDisabled(item.key, char.id)));
+        } else if (!isHiddenRow && unreached) {
+          // Ver未到達：チェック不可（グレーアウト）
+          const cb = document.createElement('input');
+          cb.type     = 'checkbox';
+          cb.disabled = true;
+          cb.checked  = false;
+          cb.classList.add('disabled-checkbox');
+          td.appendChild(cb);
         } else if (!isHiddenRow) {
           // 昏冥庫パニガルム／まもの博士(同盟)が開催期間外の場合はチェック不可
           let isPeriodClosed = false;
@@ -1933,6 +2386,26 @@ input[type="checkbox"].disabled-checkbox { opacity: 0.4; cursor: not-allowed; po
 .hide-toggle-active   { background-color: #10b981; }
 .hide-toggle-inactive { background-color: #ef4444; }
 
+/* 情報列・Ver設定 */
+.info-head { text-align: center !important; padding: 0 4px !important; }
+.info-cell { text-align: center !important; padding: 2px 3px !important; width: 26px; }
+.info-btn  { background: none; border: 1px solid #94a8c2; color: #2c7da0; border-radius: 50%; width: 20px; height: 20px; font-size: 0.7rem; line-height: 1; padding: 0; cursor: pointer; }
+.char-ver-select, .toolbar select { font-size: 0.6rem; padding: 1px 2px; border: 1px solid #ccc; border-radius: 10px; background: #fff; color: #1e2f3f; max-width: 78px; }
+.ver-locked { filter: grayscale(1); background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0, rgba(0,0,0,0.10) 4px, transparent 4px, transparent 8px); }
+
+/* 初回セットアップ */
+.setup-panel { padding: 16px; max-width: 460px; margin: 12px auto; }
+.setup-panel h2 { font-size: 1rem; margin: 0 0 8px; }
+.setup-panel p  { font-size: 0.78rem; line-height: 1.6; margin: 0 0 14px; }
+.setup-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.setup-name { flex: 1; border-left: 6px solid #ccc; padding-left: 8px; word-break: break-all; font-size: 0.85rem; text-align: left; }
+.setup-panel input[type="text"], .setup-panel select { font-size: 0.8rem; padding: 6px 8px; border: 1px solid #ccc; border-radius: 10px; background: #fff; color: #1e2f3f; }
+.setup-color { width: 34px; height: 32px; padding: 1px 2px; border: 1px solid #ccc; border-radius: 10px; cursor: pointer; }
+.setup-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.setup-btn { flex: 1; padding: 9px 10px; border: none; border-radius: 10px; cursor: pointer; font-size: 0.8rem; background: #e2e8f0; color: #1e2f3f; }
+.setup-btn.primary { background: #0066cc; color: #fff; font-weight: 700; }
+.setup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* 詳細テーブル */
 .detail-table th, .detail-table td { text-align: left; padding: 6px 8px; }
 
@@ -1972,6 +2445,13 @@ body.dark-mode #rightTable .section-row td { background: #334155 !important; }
 body.dark-mode .detail-section-row td { background: #334155; }
 body.dark-mode .detail-table td { background-color: #111827 !important; color: #e5e7eb !important; border-bottom-color: #374151 !important; }
 body.dark-mode .detail-table th { background-color: #1f2937 !important; color: #e5e7eb !important; }
+body.dark-mode .info-btn { color: #7dd3fc; border-color: #64748b; }
+body.dark-mode .char-ver-select, body.dark-mode .toolbar select { background: #374151; color: #e5e7eb; border-color: #4b5563; }
+body.dark-mode .ver-locked { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0, rgba(255,255,255,0.10) 4px, transparent 4px, transparent 8px); }
+body.dark-mode .setup-panel { color: #e5e7eb; }
+body.dark-mode .setup-panel input[type="text"], body.dark-mode .setup-panel select { background: #374151; color: #e5e7eb; border-color: #4b5563; }
+body.dark-mode .setup-btn { background: #374151; color: #e5e7eb; }
+body.dark-mode .setup-btn.primary { background: #3399ff; color: #fff; }
 body.dark-mode .char-name   { color: #fff; }
 body.dark-mode .char-delete { color: #f88; }
 body.dark-mode .char-controls { color: #e5e7eb; }
@@ -1997,6 +2477,7 @@ body.dark-mode #rightPanel   { background: #111827; }
   <div id="toolbar" class="toolbar">
     <input id="newCharName"  type="text"  placeholder="キャラ名" />
     <input id="newCharColor" type="color" value="#d4eaf3" />
+    <select id="newCharVer" title="進行バージョン"></select>
     <button id="addCharBtn"   class="add-btn">＋ 追加</button>
     <button id="editModeBtn"  class="edit-btn">✏️ 編集モード</button>
     <button id="exportBtn"    class="export-btn">📋 書き出し</button>
@@ -2007,7 +2488,7 @@ body.dark-mode #rightPanel   { background: #111827; }
   <div id="tableWrapper">
     <div id="leftPanel">
       <table id="leftTable">
-        <thead><tr><th>項目</th></tr></thead>
+        <thead><tr><th>項目</th><th class="info-head">情報</th></tr></thead>
         <tbody id="leftBody"></tbody>
       </table>
     </div>
@@ -2026,6 +2507,10 @@ body.dark-mode #rightPanel   { background: #111827; }
       loadDisabled();
       loadHidden();
 
+      // 追加フォームのVer選択を作る
+      const newVerSel = document.getElementById('newCharVer');
+      newVerSel.replaceWith(Object.assign(createVerSelect(undefined, true), { id: 'newCharVer', title: '進行バージョン' }));
+
       document.getElementById('addCharBtn').addEventListener('click', addCharacter);
       document.getElementById('editModeBtn').addEventListener('click', toggleEditMode);
       document.getElementById('exportBtn').addEventListener('click', exportSpell);
@@ -2035,11 +2520,15 @@ body.dark-mode #rightPanel   { background: #111827; }
       window.addEventListener('resize', syncRowHeights);
 
       renderAll();
+      showCheckerGuide();
 
       // ダークモード切替を検知して再描画（カラムカラーの再計算のため）
       if (darkModeObserver) darkModeObserver.disconnect();
       darkModeObserver = new MutationObserver(() => renderAll());
       darkModeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    },
+    showGuide: function(force) {
+      showCheckerGuide(force);
     },
     destroy: function() {
         if (darkModeObserver) {

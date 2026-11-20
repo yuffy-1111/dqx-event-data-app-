@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.2.1s';
+const APP_VERSION = '1.2.5s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -20,6 +20,7 @@ function dqxGetJSTDateKey() {
 // 日付が変わっていたらキャッシュクリア込みで強制的に再読み込みする。
 const STORAGE_KEYS = Object.freeze({
     APP_VERSION: 'dqx_app_version',
+    PENDING_UPDATE_NOTICE: 'dqx_pending_update_notice',
     SIDEBAR_VISIBLE: 'dqx_sidebar_visible',
     DARK_MODE: 'darkMode',
     CARD_ORDER: 'dqx_card_order',
@@ -97,6 +98,21 @@ function dqxAppendEscapedTextWithBr(container, value) {
         }
         container.appendChild(document.createTextNode(part));
     });
+}
+
+function normalizeBadgeTypes(value) {
+    const values = Array.isArray(value) ? value : [value];
+    return [...new Set(values.filter((badge) => badge === 'yellow' || badge === 'checker-nondaily'))];
+}
+
+function mergeBadges(...values) {
+    const merged = [];
+    for (const value of values) {
+        for (const badge of normalizeBadgeTypes(value)) {
+            if (!merged.includes(badge)) merged.push(badge);
+        }
+    }
+    return merged;
 }
 
 // ========== ローディング画像（起動時スプラッシュ／ツール切り替え時 共通） ==========
@@ -201,6 +217,10 @@ window.DQX_BG_CHECK_PROMISE = (function() {
     const KEY_CHECK_DATE   = 'dqx_bg_check_date';
     const KEY_BADGES       = 'dqx_bg_badges';
 
+    function addBadge(badges, id, badge) {
+        badges[id] = mergeBadges(badges[id], badge);
+    }
+
     function quickHash(text) {
         const tail = text.slice(-256);
         return text.length + ':' + tail;
@@ -227,21 +247,6 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         const newSnaps   = {};
         const badges     = {};
         const isFirstRun = Object.keys(prevSnaps).length === 0;
-
-        function addBadge(target, id, type) {
-            const current = target[id];
-            const types = Array.isArray(current) ? current : current ? [current] : [];
-            if (!types.includes(type)) types.push(type);
-            target[id] = types;
-        }
-
-        function mergeBadges(target, source) {
-            Object.entries(source).forEach(([id, value]) => {
-                (Array.isArray(value) ? value : [value]).forEach((type) => {
-                    addBadge(target, id, type);
-                });
-            });
-        }
 
         await Promise.all(TOOL_FILES.map(async ({ id, url }) => {
             try {
@@ -319,6 +324,7 @@ window.DQX_BG_CHECK_PROMISE = (function() {
             } else if (!isFirstRun && fixedResetIsNew) {
                 // checker.json 取得に失敗しても、固定周期タスクのリセットは
                 // ローカル計算のみで判定できるためバッジは立てる
+                // （ファイル更新検知(yellow)はここでも優先する）
                 addBadge(badges, 'Checker', 'checker-nondaily');
             }
         } catch(e) {
@@ -331,9 +337,13 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         // ものは維持する。今回の差分で新たに検出したバッジと合成する。
         try {
             const prevBadges = JSON.parse(localStorage.getItem(KEY_BADGES) || '{}');
-            mergeBadges(window.DQX_CARD_BADGES, prevBadges);
+            for (const [id, badgeTypes] of Object.entries(prevBadges)) {
+                window.DQX_CARD_BADGES[id] = mergeBadges(window.DQX_CARD_BADGES[id], badgeTypes);
+            }
         } catch(e) {}
-        mergeBadges(window.DQX_CARD_BADGES, badges);
+        for (const [id, badgeTypes] of Object.entries(badges)) {
+            window.DQX_CARD_BADGES[id] = mergeBadges(window.DQX_CARD_BADGES[id], badgeTypes);
+        }
 
         saveToolSnaps(newSnaps);
         try { localStorage.setItem(KEY_CHECK_DATE, today); } catch(e) {}
@@ -424,28 +434,91 @@ window.DQX_RELEASE_NOTES_PROMISE = fetch('./release-notes.json?v=' + Date.now(),
 // manifest が改ざんされても window.eval 等の危険なプロパティを呼べないようにする。
 const ALLOWED_RENDER_PREFIXES = [
     'Checker.', 'Expmercenary.', 'VersionSelector.',
-    'Help.', 'Settings.', 'Install.', 'Durahan.'
+    'Help.', 'Settings.', 'Install.', 'Kaji.', 'Durahan.'
 ];
 function isAllowedRenderFn(renderFn) {
     return ALLOWED_RENDER_PREFIXES.some((prefix) => renderFn.startsWith(prefix));
 }
 
 function checkVersionUpdate() {
-    // 更新適用の再読み込みが控えている起動では、通知も保存済みバージョンの更新も
-    // 行わない。ここで更新すると、スプラッシュの裏で通知が出て見えないまま
-    // 基準値だけ書き換わり、再読み込み後に「アップデートされました」が出なくなる。
-    if (typeof window.dqxReloadPending === 'function' && window.dqxReloadPending()) return;
     const storedVersion = localStorage.getItem(STORAGE_KEYS.APP_VERSION);
+    let pendingNotice = null;
+    try {
+        pendingNotice = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE) || 'null');
+    } catch (e) {
+        localStorage.removeItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE);
+    }
+
     if (storedVersion && storedVersion !== APP_VERSION) {
-        const message = `アップデートされました！ ${storedVersion} → ${APP_VERSION}`;
-        if (typeof window.dqxQueueStartupNotice === 'function') {
-            window.dqxQueueStartupNotice('update', message);
-        } else if (typeof window.dqxShowToast === 'function') {
-            window.dqxShowToast(message, { variant: 'success', duration: 6000 });
-        }
+        pendingNotice = {
+            fromVersion: pendingNotice?.fromVersion || storedVersion,
+            toVersion: APP_VERSION,
+            newTools: Array.isArray(pendingNotice?.newTools) ? pendingNotice.newTools : [],
+        };
+        localStorage.setItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE, JSON.stringify(pendingNotice));
     }
     localStorage.setItem(STORAGE_KEYS.APP_VERSION, APP_VERSION);
+
+    if (pendingNotice && (pendingNotice.toVersion === APP_VERSION || pendingNotice.newTools?.length)) {
+        schedulePendingUpdateNotice();
+    }
 }
+
+let updateNoticeScheduled = false;
+function schedulePendingUpdateNotice() {
+    if (updateNoticeScheduled) return;
+    updateNoticeScheduled = true;
+
+    const showWhenReady = () => {
+        if (document.getElementById('dqx-loading-overlay')) {
+            setTimeout(showWhenReady, 200);
+            return;
+        }
+
+        let notice;
+        try {
+            notice = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE) || 'null');
+        } catch (e) {
+            console.warn('[Update Notice] 通知情報の読み込みに失敗しました', e);
+            updateNoticeScheduled = false;
+            return;
+        }
+
+        const messages = [];
+        if (notice?.fromVersion && notice?.toVersion && notice.fromVersion !== notice.toVersion) {
+            messages.push(`アップデートされました！ ${notice.fromVersion} → ${notice.toVersion}`);
+        }
+        if (Array.isArray(notice?.newTools) && notice.newTools.length > 0) {
+            messages.push(`新しいツールが追加されました：${notice.newTools.join('、')}`);
+        }
+        if (messages.length > 0 && typeof window.dqxShowToast === 'function') {
+            window.dqxShowToast(messages.join('。'), { variant: 'success', duration: 7000 });
+            localStorage.removeItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE);
+        }
+        updateNoticeScheduled = false;
+    };
+    setTimeout(showWhenReady, 200);
+}
+
+window.dqxQueueNewToolNotice = function(names) {
+    let notice;
+    try {
+        notice = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE) || 'null');
+    } catch (e) {
+        console.warn('[Update Notice] 通知情報を初期化します', e);
+        notice = null;
+    }
+    if (!notice || typeof notice !== 'object') {
+        notice = { fromVersion: null, toVersion: APP_VERSION, newTools: [] };
+    }
+    const namesToAdd = Array.isArray(names) ? names : [names];
+    notice.newTools = [...new Set([
+        ...(Array.isArray(notice.newTools) ? notice.newTools : []),
+        ...namesToAdd.filter((name) => typeof name === 'string' && name.length > 0),
+    ])];
+    localStorage.setItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE, JSON.stringify(notice));
+    schedulePendingUpdateNotice();
+};
 
 const DQXTools = {
     tools: {},
@@ -495,6 +568,7 @@ const DQXTools = {
     cleanupStorage: function() {
         const allowedLocal = [
             'dqx_app_version',
+            'dqx_pending_update_notice',
             'dqx_card_order',
             'dqx_visible_tools',
             'dqx_dev_mode',
@@ -504,6 +578,7 @@ const DQXTools = {
             'dqx_disabled_final10',
             'dqx_hidden_tasks_v1',
             'dqx_limited_checks_v3',
+            'dqx_ver_setup_v1',
             'dqx_lap_notify',
             'dqx_shopping_cart',
             'dqx_material_prices',
@@ -527,8 +602,7 @@ const DQXTools = {
             const allowed = allowedLocal.includes(key)
                 || key.startsWith('dqx_check_final10_')
                 || key.startsWith('dqx_limited_checks_v3_')
-                || key.startsWith('dqx_guide_seen_')
-                || key.startsWith('dqx_custom_events');
+                || key.startsWith('dqx_guide_seen_');
             if (!allowed) {
                 try {
                     localStorage.removeItem(key);
@@ -647,22 +721,18 @@ const DQXTools = {
             card.dataset.toolId = id;
             card.dataset.requiresToken = String(tool.requiresToken || false);
 
-            const badge = window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[id];
-            const badgeTypes = Array.isArray(badge) ? badge : badge ? [badge] : [];
+            const badgeTypes = normalizeBadgeTypes(window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[id]);
             if (badgeTypes.length > 0) {
-                const badgeContainer = document.createElement('span');
+                const badgeContainer = document.createElement('div');
                 badgeContainer.className = 'card-badges';
-                badgeTypes.forEach((type) => {
+                for (const badgeType of badgeTypes) {
                     const badgeEl = document.createElement('span');
-                    badgeEl.className = type === 'checker-nondaily'
-                        ? 'card-badge card-badge-green'
-                        : 'card-badge card-badge-yellow';
-                    badgeEl.title = type === 'checker-nondaily'
+                    badgeEl.className = `card-badge ${badgeType === 'checker-nondaily' ? 'card-badge-green' : 'card-badge-yellow'}`;
+                    badgeEl.title = badgeType === 'checker-nondaily'
                         ? 'イベント情報に更新あり（日課以外）'
                         : 'ツールが更新されました';
-                    badgeEl.setAttribute('aria-label', badgeEl.title);
                     badgeContainer.appendChild(badgeEl);
-                });
+                }
                 card.appendChild(badgeContainer);
             }
 
@@ -1480,14 +1550,25 @@ const DQXTools = {
         // 多重起動防止（resize等で複数回呼ばれても二重表示しない）
         if (document.getElementById('dqx-guide-overlay')) return;
 
-        // 表示した時点で既読にする。
-        // 最後まで進める／閉じるまで既読にしない方式だと、ガイド表示中に
-        // 再読み込み（更新検知・6時またぎ等）や画面離脱が起きた場合に
-        // 未読のままとなり、次回の起動で再度勝手に表示されてしまうため。
-        // 見直しは設定画面から可能（force=true は既読フラグを無視して表示する）。
-        try { localStorage.setItem(guideKey, '1'); } catch (e) { /* noop */ }
-
         let idx = 0;
+        const rootElement = document.documentElement;
+        const bodyElement = document.body;
+        const initialScrollX = window.scrollX;
+        const initialScrollY = window.scrollY;
+        const previousRootOverflow = rootElement.style.overflow;
+        const previousBodyOverflow = bodyElement.style.overflow;
+        const preventScroll = (event) => event.preventDefault();
+        const preventScrollKey = (event) => {
+            if (!['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) return;
+            if (event.target && event.target.closest
+                && event.target.closest('button,input,textarea,select,[contenteditable="true"]')) return;
+            event.preventDefault();
+        };
+        rootElement.style.overflow = 'hidden';
+        bodyElement.style.overflow = 'hidden';
+        document.addEventListener('wheel', preventScroll, { passive: false, capture: true });
+        document.addEventListener('touchmove', preventScroll, { passive: false, capture: true });
+        window.addEventListener('keydown', preventScrollKey, true);
 
         const overlay = document.createElement('div');
         overlay.id = 'dqx-guide-overlay';
@@ -1500,16 +1581,23 @@ const DQXTools = {
 
         const cleanup = () => {
             window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', reposition, true);
+            document.removeEventListener('wheel', preventScroll, true);
+            document.removeEventListener('touchmove', preventScroll, true);
+            window.removeEventListener('keydown', preventScrollKey, true);
             overlay.remove();
             highlight.remove();
             balloon.remove();
+            rootElement.style.overflow = previousRootOverflow;
+            bodyElement.style.overflow = previousBodyOverflow;
+            window.scrollTo(initialScrollX, initialScrollY);
         };
 
         const finish = () => {
             try { localStorage.setItem(guideKey, '1'); } catch (e) { /* noop */ }
             cleanup();
             if (window.dqxShowToast) {
-                window.dqxShowToast('ガイドは設定からいつでも見返せます', { duration: 4000 });
+                window.dqxShowToast('ガイドは設定から再度確認できます', { duration: 4000 });
             }
         };
 
@@ -1541,8 +1629,6 @@ const DQXTools = {
             left = Math.max(10, Math.min(left, window.innerWidth - balloonWidth - 10));
             balloon.style.top  = top + 'px';
             balloon.style.left = left + 'px';
-
-            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
         };
 
         const renderStep = () => {
@@ -1610,10 +1696,15 @@ const DQXTools = {
             actions.appendChild(actionsRight);
             balloon.appendChild(actions);
 
-            requestAnimationFrame(reposition);
+            requestAnimationFrame(() => {
+                const target = document.querySelector(step.selector);
+                if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                reposition();
+            });
         };
 
         window.addEventListener('resize', reposition);
+        window.addEventListener('scroll', reposition, true);
 
         document.body.appendChild(overlay);
         document.body.appendChild(highlight);
@@ -1637,6 +1728,14 @@ const DQXTools = {
             { selector: '#footer-releasenotes-btn', title: 'リリースノート', text: '更新による変更内容はここから確認できます。' },
         ];
         this.showGuide(steps, 'dqx_guide_seen_home', { force: !!force });
+    },
+
+    showCheckerGuideForced: async function() {
+        await this.loadTool('Checker');
+        if (this.currentTool !== 'Checker') return;
+        if (window.Checker && typeof window.Checker.showGuide === 'function') {
+            window.Checker.showGuide(true);
+        }
     },
 
     // 設定画面の「ガイドをもう一度見る」ボタンから呼ばれる。

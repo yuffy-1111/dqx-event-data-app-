@@ -20,9 +20,10 @@
                         <h3>📘 使い方ガイド</h3>
                         <div class="button-group">
                             <button id="showHomeGuideBtn" class="btn-info">ホーム画面のガイドを見る</button>
+                            <button id="showCheckerGuideBtn" class="btn-info">進捗チェッカーのガイドを見る</button>
                         </div>
                         <p class="settings-note">
-                            ※ ホーム画面に移動して、各機能の説明を最初から表示します。
+                            ※ 各ボタンから対応するガイドを最初から表示できます。
                         </p>
                     </div>
 
@@ -200,6 +201,14 @@
                 showHomeGuideBtn.onclick = () => {
                     if (window.DQXTools && typeof window.DQXTools.showHomeGuideForced === 'function') {
                         window.DQXTools.showHomeGuideForced();
+                    }
+                };
+            }
+            const showCheckerGuideBtn = document.getElementById('showCheckerGuideBtn');
+            if (showCheckerGuideBtn) {
+                showCheckerGuideBtn.onclick = () => {
+                    if (window.DQXTools && typeof window.DQXTools.showCheckerGuideForced === 'function') {
+                        window.DQXTools.showCheckerGuideForced();
                     }
                 };
             }
